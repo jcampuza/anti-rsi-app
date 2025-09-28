@@ -1,5 +1,6 @@
 import type { AntiRsiRendererApi } from '../hooks/useAntiRsiApi'
 import type { AntiRsiSnapshot } from '../../../common/antirsi-core'
+import { Button } from '@renderer/components/ui/Button'
 
 interface HeaderActionsProps {
   api: AntiRsiRendererApi | undefined
@@ -55,24 +56,29 @@ export const HeaderActions = ({
   }
 
   return (
-    <div className="header-actions">
-      <button
+    <div className="flex flex-wrap justify-end gap-3 app-region-no-drag">
+      <Button
         type="button"
-        className="primary"
+        variant="primary"
         onClick={handleTriggerWorkBreak}
         disabled={isActionDisabled}
       >
         Start Work Break
-      </button>
-      <button type="button" onClick={handlePostponeWorkBreak} disabled={isActionDisabled}>
+      </Button>
+      <Button
+        type="button"
+        variant="secondary"
+        onClick={handlePostponeWorkBreak}
+        disabled={isActionDisabled}
+      >
         Postpone Work Break
-      </button>
-      <button type="button" onClick={handleTogglePause} disabled={!api}>
+      </Button>
+      <Button type="button" variant="secondary" onClick={handleTogglePause} disabled={!api}>
         {isPaused ? 'Resume Timers' : 'Pause Timers'}
-      </button>
-      <button type="button" onClick={handleResetTimings} disabled={!api}>
+      </Button>
+      <Button type="button" variant="secondary" onClick={handleResetTimings} disabled={!api}>
         Reset Timers
-      </button>
+      </Button>
     </div>
   )
 }

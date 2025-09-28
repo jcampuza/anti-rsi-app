@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import type { AntiRsiRendererApi } from '../hooks/useAntiRsiApi'
 import type { BreakConfig, AntiRsiConfig } from '../../../common/antirsi-core'
+import { Button } from '@renderer/components/ui/Button'
 
 interface ConfigPanelProps {
   config: AntiRsiConfig
@@ -36,12 +37,13 @@ const ConfigPanel = ({ config, api, onReset }: ConfigPanelProps): React.JSX.Elem
   }
 
   return (
-    <section className="config-panel">
-      <h3>Timing Overrides</h3>
-      <div className="config-grid">
-        <label>
+    <section className="app-region-no-drag flex flex-col gap-4 rounded-xl border border-border bg-card p-4 text-foreground">
+      <h3 className="text-lg font-semibold">Timing Overrides</h3>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <label className="flex flex-col gap-1 text-sm">
           Micro Pause Interval (s)
           <input
+            className="input"
             type="number"
             min={30}
             value={miniConfig.intervalSeconds}
@@ -53,9 +55,10 @@ const ConfigPanel = ({ config, api, onReset }: ConfigPanelProps): React.JSX.Elem
             }
           />
         </label>
-        <label>
+        <label className="flex flex-col gap-1 text-sm">
           Micro Pause Duration (s)
           <input
+            className="input"
             type="number"
             min={3}
             value={miniConfig.durationSeconds}
@@ -67,9 +70,10 @@ const ConfigPanel = ({ config, api, onReset }: ConfigPanelProps): React.JSX.Elem
             }
           />
         </label>
-        <label>
+        <label className="flex flex-col gap-1 text-sm">
           Work Break Interval (s)
           <input
+            className="input"
             type="number"
             min={60}
             value={workConfig.intervalSeconds}
@@ -81,9 +85,10 @@ const ConfigPanel = ({ config, api, onReset }: ConfigPanelProps): React.JSX.Elem
             }
           />
         </label>
-        <label>
+        <label className="flex flex-col gap-1 text-sm">
           Work Break Duration (s)
           <input
+            className="input"
             type="number"
             min={60}
             value={workConfig.durationSeconds}
@@ -95,9 +100,10 @@ const ConfigPanel = ({ config, api, onReset }: ConfigPanelProps): React.JSX.Elem
             }
           />
         </label>
-        <label>
+        <label className="flex flex-col gap-1 text-sm">
           Postpone Amount (s)
           <input
+            className="input"
             type="number"
             min={60}
             value={workConfig.postponeSeconds}
@@ -110,13 +116,13 @@ const ConfigPanel = ({ config, api, onReset }: ConfigPanelProps): React.JSX.Elem
           />
         </label>
       </div>
-      <div className="config-actions">
-        <button type="button" onClick={handleApply} className="primary" disabled={!api}>
+      <div className="flex flex-wrap gap-3">
+        <Button type="button" variant="primary" onClick={handleApply} disabled={!api}>
           Apply Config
-        </button>
-        <button type="button" onClick={onReset}>
+        </Button>
+        <Button type="button" variant="secondary" onClick={onReset}>
           Reset Defaults
-        </button>
+        </Button>
       </div>
     </section>
   )

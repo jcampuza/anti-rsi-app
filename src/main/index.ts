@@ -1,6 +1,16 @@
-import { app, shell, BrowserWindow, ipcMain, screen, Tray, Menu, nativeImage } from 'electron'
+import {
+  app,
+  shell,
+  BrowserWindow,
+  ipcMain,
+  screen,
+  Tray,
+  Menu,
+  nativeImage,
+  MenuItemConstructorOptions
+} from 'electron'
 import { join } from 'path'
-import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import { optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { AntiRsiConfig, AntiRsiEvent, AntiRsiSnapshot, BreakType } from '../common/antirsi-core'
 import ConfigStore from './lib/config-store'
@@ -13,14 +23,17 @@ let tray: Tray | null = null
 
 app.setName('Anti RSI')
 
-const loadRenderer = (window: BrowserWindow, options?: { overlay?: boolean }): void => {
+const loadRenderer = (
+  window: BrowserWindow,
+  options?: { overlay?: boolean; route?: string }
+): void => {
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    const url = options?.overlay
-      ? `${process.env['ELECTRON_RENDERER_URL']}#overlay=1`
+    const url = options?.route
+      ? `${process.env['ELECTRON_RENDERER_URL']}#${options.route}`
       : process.env['ELECTRON_RENDERER_URL']
     window.loadURL(url)
   } else {
-    const hash = options?.overlay ? 'overlay=1' : undefined
+    const hash = options?.route
     window.loadFile(join(__dirname, '../renderer/index.html'), hash ? { hash } : undefined)
   }
 }
@@ -29,12 +42,12 @@ function createWindow(): void {
   // Create the browser window.
   mainWindow = new BrowserWindow({
     width: 900,
+    maxWidth: 900,
     height: 670,
     show: false,
     autoHideMenuBar: true,
     titleBarStyle: 'hidden',
     icon,
-    ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false
@@ -50,6 +63,14 @@ function createWindow(): void {
     return { action: 'deny' }
   })
 
+  mainWindow.webContents.on('did-finish-load', () => {
+    mainWindow?.setTitle('Anti RSI')
+  })
+
+  mainWindow.on('closed', () => {
+    mainWindow = null
+  })
+
   loadRenderer(mainWindow)
 }
 
@@ -63,7 +84,8 @@ const ensureOverlayWindows = (breakType: BreakType): void => {
   const displays = screen.getAllDisplays()
   if (overlayWindows.length === displays.length) {
     overlayWindows.forEach((window) => {
-      loadRenderer(window, { overlay: true })
+      const route = breakType === 'mini' ? '/micro-break' : '/work-break'
+      loadRenderer(window, { overlay: true, route })
       window.webContents.send('antirsi:overlay-break', breakType)
       window.showInactive()
     })
@@ -96,7 +118,8 @@ const ensureOverlayWindows = (breakType: BreakType): void => {
 
     overlayWindow.setAlwaysOnTop(true, 'screen-saver')
     overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
-    loadRenderer(overlayWindow, { overlay: true })
+    const route = breakType === 'mini' ? '/micro-break' : '/work-break'
+    loadRenderer(overlayWindow, { overlay: true, route })
     overlayWindow.on('close', (event) => {
       if (overlayWindows.includes(overlayWindow)) {
         event.preventDefault()
@@ -143,7 +166,7 @@ const showOrCreateMainWindow = (): void => {
 }
 
 const ensureTray = (): void => {
-  if (tray || process.platform !== 'darwin') {
+  if (tray) {
     return
   }
 
@@ -188,16 +211,86 @@ const ensureTray = (): void => {
   tray.setContextMenu(trayMenu)
 }
 
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
-// Some APIs can only be used after this event occurs.
-app.whenReady().then(async () => {
-  // Set app user model id for windows
-  electronApp.setAppUserModelId('com.antirsi.app')
+const ensureApplicationMenu = (): void => {
+  const template: MenuItemConstructorOptions[] = [
+    {
+      label: app.name,
+      submenu: [
+        { role: 'about' },
+        { type: 'separator' },
+        { role: 'services' },
+        { type: 'separator' },
+        { role: 'hide' },
+        { role: 'hideOthers' },
+        { role: 'unhide' },
+        { type: 'separator' },
+        { role: 'quit' }
+      ]
+    },
+    {
+      label: 'File',
+      submenu: [
+        {
+          label: 'New Window',
+          accelerator: 'Command+N',
+          click: () => {
+            showOrCreateMainWindow()
+          }
+        },
+        { type: 'separator' },
+        { role: 'close' }
+      ]
+    },
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'pasteAndMatchStyle' },
+        { role: 'delete' },
+        { role: 'selectAll' }
+      ]
+    },
+    {
+      label: 'View',
+      submenu: [
+        ...(is.dev
+          ? ([
+              { role: 'reload' },
+              { role: 'forceReload' },
+              { role: 'toggleDevTools' }
+            ] satisfies MenuItemConstructorOptions[])
+          : []),
+        { type: 'separator' },
+        { role: 'togglefullscreen' }
+      ]
+    },
+    {
+      label: 'Window',
+      submenu: [{ role: 'minimize' }, { role: 'zoom' }, { type: 'separator' }, { role: 'front' }]
+    },
+    {
+      role: 'help',
+      submenu: [
+        {
+          label: 'Learn More',
+          click: async () => {
+            await shell.openExternal('https://github.com/ruuda/antiRSI')
+          }
+        }
+      ]
+    }
+  ]
 
-  // Default open or close DevTools by F12 in development
-  // and ignore CommandOrControl + R in production.
-  // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
+  const menu = Menu.buildFromTemplate(template)
+  Menu.setApplicationMenu(menu)
+}
+
+app.whenReady().then(async () => {
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
@@ -228,6 +321,7 @@ app.whenReady().then(async () => {
 
   antiRsiService.start()
   ensureTray()
+  ensureApplicationMenu()
 
   ipcMain.handle('antirsi:get-snapshot', () => antiRsiService?.getSnapshot())
   ipcMain.handle('antirsi:get-config', () => antiRsiService?.getConfig())
@@ -247,22 +341,15 @@ app.whenReady().then(async () => {
 
   createWindow()
 
-  app.on('activate', function () {
-    // On macOS it's common to re-create a window in the app when the
-    // dock icon is clicked and there are no other windows open.
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createWindow()
+    }
   })
 })
 
-// Quit when all windows are closed, except on macOS. There, it's common
-// for applications and their menu bar to stay active until the user quits
-// explicitly with Cmd + Q.
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    antiRsiService?.stop()
-    antiRsiService = null
-    app.quit()
-  }
+  // noop since this is a macos app and the normal behavior is to keep the app running
 })
 
 app.on('before-quit', () => {

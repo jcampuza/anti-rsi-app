@@ -23,21 +23,23 @@ const BreakStatusCard = ({
     breakType === 'mini' ? config.mini.intervalSeconds : config.work.intervalSeconds
 
   return (
-    <article className="status-card">
-      <header>
-        <h2>{label}</h2>
-        <span className={`status-state${breakType === 'work' ? ' status-state--accent' : ''}`}>
+    <article className="rounded-xl border border-border bg-card p-4 text-foreground shadow">
+      <header className="flex items-baseline justify-between">
+        <h2 className="text-lg font-semibold">{label}</h2>
+        <span
+          className={`text-xs uppercase tracking-[0.08em] ${breakType === 'work' ? 'text-accent' : 'text-muted-foreground'}`}
+        >
           {isActive ? 'Active' : 'Idle'}
         </span>
       </header>
-      <div className="status-metrics">
-        <div>
-          <span className="metric-value">{formatSeconds(pendingSeconds)}</span>
-          <span className="metric-label">Time Until Next</span>
+      <div className="mt-4 flex items-center justify-between">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-2xl font-semibold">{formatSeconds(pendingSeconds)}</span>
+          <span className="text-xs text-muted-foreground">Time Until Next</span>
         </div>
-        <div>
-          <span className="metric-value">{formatSeconds(duration)}</span>
-          <span className="metric-label">Duration</span>
+        <div className="flex flex-col gap-0.5">
+          <span className="text-2xl font-semibold">{formatSeconds(duration)}</span>
+          <span className="text-xs text-muted-foreground">Duration</span>
         </div>
       </div>
       <progress value={elapsed} max={intervalMax} aria-label={`${label} progress`} />

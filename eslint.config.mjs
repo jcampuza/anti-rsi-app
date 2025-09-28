@@ -9,7 +9,6 @@ export default defineConfig(
   { ignores: ['**/node_modules', '**/dist', '**/out'] },
   tseslint.configs.recommended,
   eslintPluginReact.configs.flat.recommended,
-  eslintPluginReact.configs.flat['jsx-runtime'],
   {
     settings: {
       react: {
@@ -20,8 +19,7 @@ export default defineConfig(
   {
     files: ['**/*.{ts,tsx}'],
     plugins: {
-      'react-hooks': eslintPluginReactHooks,
-      'react-refresh': eslintPluginReactRefresh
+      'react-hooks': eslintPluginReactHooks
     },
     rules: {
       ...eslintPluginReactHooks.configs.recommended.rules,

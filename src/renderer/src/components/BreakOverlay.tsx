@@ -12,10 +12,12 @@ const BreakOverlay = ({ snapshot, config, onPostpone }: BreakOverlayProps): Reac
 
   if (breakState !== 'in-mini' && breakState !== 'in-work') {
     return (
-      <div className="overlay-shell">
-        <div className="overlay-content">
-          <h1>Break Complete</h1>
-          <p>You can get back to work when the overlay closes.</p>
+      <div className="fixed inset-0 flex flex-col items-center justify-center gap-4 bg-background px-10 py-10 text-foreground">
+        <div className="flex max-w-lg flex-col gap-6 text-center">
+          <h1 className="text-5xl font-bold">Break Complete</h1>
+          <p className="text-lg text-muted-foreground">
+            You can get back to work when the overlay closes.
+          </p>
         </div>
       </div>
     )
@@ -27,16 +29,22 @@ const BreakOverlay = ({ snapshot, config, onPostpone }: BreakOverlayProps): Reac
   const remaining = Math.max(breakDuration - elapsed, 0)
 
   return (
-    <div className={`overlay-shell overlay-shell--${isWorkBreak ? 'work' : 'mini'}`}>
-      <div className="overlay-content">
-        <h1>{isWorkBreak ? 'Work Break' : 'Micro Break'}</h1>
-        <p>Relax your hands and look away from the screen.</p>
-        <div className="overlay-timer">
-          <span>{formatSeconds(remaining)}</span>
-        </div>
+    <div
+      className={`fixed inset-0 flex flex-col items-center justify-center gap-4 bg-background px-10 py-10 text-foreground`}
+    >
+      <div className="flex max-w-lg flex-col gap-6 text-center">
+        <h1 className="text-5xl font-bold">{isWorkBreak ? 'Work Break' : 'Micro Break'}</h1>
+        <p className="text-lg text-muted-foreground">
+          Relax your hands and look away from the screen.
+        </p>
+        <div className="text-7xl font-bold tracking-[0.08em]">{formatSeconds(remaining)}</div>
         <progress value={elapsed} max={breakDuration} aria-label="Break progress" />
         {isWorkBreak && onPostpone ? (
-          <button type="button" onClick={onPostpone}>
+          <button
+            type="button"
+            className="mx-auto rounded-md border border-border bg-secondary px-5 py-2 text-sm font-semibold text-secondary-foreground transition-colors hover:opacity-90"
+            onClick={onPostpone}
+          >
             Postpone
           </button>
         ) : null}
