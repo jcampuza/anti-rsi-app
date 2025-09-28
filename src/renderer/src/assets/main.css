@@ -1,0 +1,351 @@
+@import './base.css';
+
+body {
+  background: var(--color-background-soft);
+  display: flex;
+  justify-content: center;
+  color: var(--color-text);
+}
+
+#root {
+  width: 100%;
+  max-width: 960px;
+}
+
+.app-shell {
+  background: rgba(32, 33, 39, 0.85);
+  backdrop-filter: blur(8px);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+  padding: 24px 28px 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  min-height: 520px;
+  -webkit-app-region: drag;
+}
+
+.app-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  -webkit-app-region: no-drag;
+}
+
+.app-header .paused-indicator {
+  margin-top: 8px;
+  color: #ffd580;
+  font-weight: 600;
+}
+
+.app-header h1 {
+  font-size: 28px;
+  line-height: 32px;
+  font-weight: 700;
+}
+
+.app-header p {
+  margin-top: 4px;
+  color: var(--ev-c-text-2);
+}
+
+.link {
+  border: none;
+  background: none;
+  color: #79a7ff;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+  -webkit-app-region: no-drag;
+}
+
+.status-card {
+  background: rgba(20, 21, 26, 0.9);
+  border-radius: 12px;
+  padding: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  -webkit-app-region: no-drag;
+}
+
+.status-card header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.status-card h2 {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.status-state {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ev-c-text-3);
+}
+
+.status-state--accent {
+  color: #ffd580;
+}
+
+.status-metrics {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.status-metrics div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.metric-value {
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.metric-label {
+  font-size: 12px;
+  color: var(--ev-c-text-3);
+}
+
+progress {
+  appearance: none;
+  height: 6px;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+progress::-webkit-progress-bar {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+progress::-webkit-progress-value {
+  background: linear-gradient(90deg, #7e8dfd, #71d6ff);
+}
+
+.next-break {
+  background: rgba(20, 21, 26, 0.9);
+  border-radius: 12px;
+  padding: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.next-break h3 {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.next-break p {
+  color: var(--ev-c-text-2);
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+}
+
+.header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.header-actions,
+.header-actions button,
+button,
+input,
+select,
+textarea,
+a {
+  -webkit-app-region: no-drag;
+}
+
+button {
+  cursor: pointer;
+  padding: 10px 18px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(60, 63, 72, 0.6);
+  color: var(--color-text);
+  font-weight: 600;
+  transition: background 150ms ease;
+}
+
+button:hover {
+  background: rgba(90, 95, 110, 0.8);
+}
+
+.primary {
+  background: linear-gradient(135deg, #7e8dfd, #71d6ff);
+  color: #0d0d15;
+  border: none;
+}
+
+.primary:hover {
+  background: linear-gradient(135deg, #6b78f2, #66c5f4);
+}
+
+.versions {
+  display: flex;
+  justify-content: center;
+  gap: 18px;
+  font-size: 12px;
+  color: var(--ev-c-text-3);
+}
+
+.versions li {
+  list-style: none;
+}
+
+.config-panel {
+  background: rgba(20, 21, 26, 0.9);
+  border-radius: 12px;
+  padding: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  -webkit-app-region: no-drag;
+}
+
+.config-panel h3 {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.config-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px 18px;
+}
+
+.config-grid label {
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+  gap: 4px;
+}
+
+.config-grid input {
+  background: rgba(60, 63, 72, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: var(--color-text);
+}
+
+.config-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.overlay-shell {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8, 11, 24, 0.92);
+  color: var(--color-text);
+  padding: 40px;
+  gap: 32px;
+}
+
+.overlay-shell--work {
+  background: rgba(16, 18, 38, 0.95);
+}
+
+.overlay-content {
+  text-align: center;
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.overlay-shell h1 {
+  font-size: 42px;
+  margin: 0;
+}
+
+.overlay-shell p {
+  font-size: 18px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.overlay-timer span {
+  font-size: 72px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+body.overlay-mode {
+  padding: 0;
+  margin: 0;
+  background: transparent;
+}
+
+body.overlay-mode #root {
+  max-width: none;
+}
+
+body.overlay-mode .app-shell {
+  background: none;
+  box-shadow: none;
+  padding: 0;
+  min-height: 0;
+}
+
+@media (max-width: 720px) {
+  body {
+    padding: 16px;
+  }
+
+  .app-shell {
+    padding: 20px 20px 32px;
+    min-height: auto;
+  }
+
+  .app-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .header-actions {
+    justify-content: flex-start;
+  }
+
+  .next-break {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .actions {
+    flex-direction: column;
+  }
+
+  .config-actions {
+    flex-direction: column;
+  }
+}
