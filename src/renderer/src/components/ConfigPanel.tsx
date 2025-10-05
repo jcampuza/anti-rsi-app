@@ -37,7 +37,7 @@ const ConfigPanel = ({ config, api, onReset }: ConfigPanelProps): React.JSX.Elem
   }
 
   return (
-    <section className="app-region-no-drag flex flex-col gap-4 rounded-xl border border-border bg-card p-4 text-foreground">
+    <section className="app-region-no-drag flex flex-col gap-4 rounded-xl border border-border bg-card p-4 text-foreground shadow">
       <h3 className="text-lg font-semibold">Timing Overrides</h3>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <label className="flex flex-col gap-1 text-sm">

@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
-import useAntiRsi from '../hooks/useAntiRsi'
-import useConfig from '../hooks/useConfig'
+import { useAntiRsi } from '../hooks/useAntiRsi'
+import { useConfig } from '../hooks/useConfig'
 import { useOverlayMode } from '../hooks/useOverlayMode'
 import BreakOverlay from '../components/BreakOverlay'
 
@@ -8,7 +8,7 @@ export const Route = createFileRoute('/work-break')({
   component: WorkBreakRoute
 })
 
-function WorkBreakRoute(): React.JSX.Element {
+function WorkBreakRoute() {
   const { snapshot, api } = useAntiRsi()
   const config = useConfig()
 
@@ -19,6 +19,11 @@ function WorkBreakRoute(): React.JSX.Element {
   }
 
   return (
-    <BreakOverlay snapshot={snapshot} config={config} onPostpone={() => api?.postponeWorkBreak()} />
+    <BreakOverlay
+      snapshot={snapshot}
+      config={config}
+      onPostpone={() => api.postponeWorkBreak()}
+      onSkip={() => api.skipWorkBreak()}
+    />
   )
 }

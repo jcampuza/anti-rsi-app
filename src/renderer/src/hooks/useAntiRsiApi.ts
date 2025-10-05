@@ -1,9 +1,10 @@
 import { useMemo } from 'react'
 
 export type AntiRsiRendererApi = Window['antirsi']
+export type ProcessesRendererApi = Window['processes']
 
-const useAntiRsiApi = (): AntiRsiRendererApi | undefined => {
-  return useMemo(() => window.antirsi ?? window.api?.antirsi, [])
+const useAntiRsiApi = (): AntiRsiRendererApi => {
+  return useMemo(() => window.api.antirsi, [])
 }
 
 export default useAntiRsiApi

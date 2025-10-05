@@ -46,6 +46,7 @@ This document gives a quick orientation to the Electron rewrite of AntiRSI. The 
 - ALWAYS implement React UI as functional components (no class components).
 - Favour TypeScript types/interfaces for public APIs and IPC payloads.
 - Keep IPC channels, core state transitions, and timing constants documented within their modules.
+- NEVER run the build or dev commands after changes, just linting.
 
 ## Getting Started
 
@@ -53,5 +54,3 @@ This document gives a quick orientation to the Electron rewrite of AntiRSI. The 
 2. Run `npm run dev` for hot-reload development.
 3. Use `npm run build` + platform-specific builder scripts for packaged binaries.
 4. Run `npm run test` to execute Vitest coverage of the core module.
-
-Refer back to `migration-plan.md` for the broader roadmap and feature parity goals.

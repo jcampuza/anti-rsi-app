@@ -1,7 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import { AntiRsiConfig, AntiRsiEvent, AntiRsiSnapshot } from '../common/antirsi-core'
-import { AntiRsiRendererApi } from './index.d'
+import { IPC_EVENTS, IPC_ACTIONS } from '../common/actions'
+import { AntiRsiRendererApi, ProcessesRendererApi } from './index.d'
 
 // Custom APIs for renderer
 type AntiRsiRendererCallback = (event: AntiRsiEvent, snapshot: AntiRsiSnapshot) => void
@@ -9,22 +10,24 @@ type AntiRsiConfigCallback = (config: AntiRsiConfig) => void
 
 const antirsi: AntiRsiRendererApi = {
   getSnapshot: (): Promise<AntiRsiSnapshot | undefined> =>
-    ipcRenderer.invoke('antirsi:get-snapshot'),
+    ipcRenderer.invoke(IPC_ACTIONS.GET_SNAPSHOT),
 
-  getConfig: (): Promise<AntiRsiConfig | undefined> => ipcRenderer.invoke('antirsi:get-config'),
+  getConfig: (): Promise<AntiRsiConfig | undefined> => ipcRenderer.invoke(IPC_ACTIONS.GET_CONFIG),
 
   setConfig: (config: Partial<AntiRsiConfig>): Promise<AntiRsiConfig | undefined> =>
-    ipcRenderer.invoke('antirsi:set-config', config),
+    ipcRenderer.invoke(IPC_ACTIONS.SET_CONFIG, config),
 
-  triggerWorkBreak: (): Promise<void> => ipcRenderer.invoke('antirsi:trigger-work-break'),
+  triggerWorkBreak: (): Promise<void> => ipcRenderer.invoke(IPC_ACTIONS.TRIGGER_WORK_BREAK),
 
-  postponeWorkBreak: (): Promise<void> => ipcRenderer.invoke('antirsi:postpone-work-break'),
+  postponeWorkBreak: (): Promise<void> => ipcRenderer.invoke(IPC_ACTIONS.POSTPONE_WORK_BREAK),
 
-  pause: (): Promise<void> => ipcRenderer.invoke('antirsi:pause'),
+  skipWorkBreak: (): Promise<void> => ipcRenderer.invoke(IPC_ACTIONS.SKIP_WORK_BREAK),
 
-  resume: (): Promise<void> => ipcRenderer.invoke('antirsi:resume'),
+  pause: (): Promise<void> => ipcRenderer.invoke(IPC_ACTIONS.PAUSE),
 
-  resetTimings: (): Promise<void> => ipcRenderer.invoke('antirsi:reset-timings'),
+  resume: (): Promise<void> => ipcRenderer.invoke(IPC_ACTIONS.RESUME),
+
+  resetTimings: (): Promise<void> => ipcRenderer.invoke(IPC_ACTIONS.RESET_TIMINGS),
 
   subscribe: (callback: AntiRsiRendererCallback): (() => void) => {
     const listener = (
@@ -34,21 +37,33 @@ const antirsi: AntiRsiRendererApi = {
     ): void => {
       callback(event, snapshot)
     }
-    ipcRenderer.on('antirsi:event', listener)
-    return () => ipcRenderer.removeListener('antirsi:event', listener)
+    ipcRenderer.on(IPC_EVENTS.EVENT, listener)
+    return () => ipcRenderer.removeListener(IPC_EVENTS.EVENT, listener)
   },
 
   subscribeConfig: (callback: AntiRsiConfigCallback): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent, config: AntiRsiConfig): void => {
       callback(config)
     }
-    ipcRenderer.on('antirsi:config', listener)
-    return () => ipcRenderer.removeListener('antirsi:config', listener)
+    ipcRenderer.on(IPC_EVENTS.CONFIG, listener)
+    return () => ipcRenderer.removeListener(IPC_EVENTS.CONFIG, listener)
+  }
+}
+
+const processes: ProcessesRendererApi = {
+  getProcesses: (): Promise<string[] | undefined> => ipcRenderer.invoke(IPC_ACTIONS.GET_PROCESSES),
+  subscribe: (callback: (processes: string[]) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, list: string[]): void => {
+      callback(list)
+    }
+    ipcRenderer.on(IPC_EVENTS.PROCESSES_UPDATE, listener)
+    return () => ipcRenderer.removeListener(IPC_EVENTS.PROCESSES_UPDATE, listener)
   }
 }
 
 const api = {
-  antirsi
+  antirsi,
+  processes
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to
@@ -59,6 +74,7 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('electron', electronAPI)
     contextBridge.exposeInMainWorld('api', api)
     contextBridge.exposeInMainWorld('antirsi', antirsi)
+    contextBridge.exposeInMainWorld('processes', processes)
   } catch (error) {
     console.error(error)
   }
@@ -69,4 +85,6 @@ if (process.contextIsolated) {
   window.api = api
   // @ts-ignore (define in dts)
   window.antirsi = antirsi
+  // @ts-ignore (define in dts)
+  window.processes = processes
 }

@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
-import useAntiRsi from '../hooks/useAntiRsi'
-import useConfig from '../hooks/useConfig'
+import { useAntiRsi } from '../hooks/useAntiRsi'
+import { useConfig } from '../hooks/useConfig'
 import { useOverlayMode } from '../hooks/useOverlayMode'
 import BreakOverlay from '../components/BreakOverlay'
 

@@ -67,6 +67,10 @@ class AntiRsiService {
     this.core.postponeWorkBreak()
   }
 
+  skipWorkBreak(): void {
+    this.core.skipWorkBreak()
+  }
+
   pause(): void {
     this.core.pause()
   }

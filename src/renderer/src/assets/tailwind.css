@@ -32,14 +32,14 @@
 
 :root {
   --radius: 0.625rem;
-  --background: #f1e9f8;
+  --background: #f6e6ff;
   --foreground: #000;
   --card: #fff;
   --card-foreground: #000;
   --popover: #fff;
   --popover-foreground: #000;
-  --primary: #9679c4;
-  --primary-foreground: oklch(0.205 0 0);
+  --primary: #5b3c8d;
+  --primary-foreground: oklch(0.985 0 0);
   --secondary: #fff;
   --secondary-foreground: #000;
   --muted: oklch(0.269 0 0);

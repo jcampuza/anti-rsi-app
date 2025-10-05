@@ -5,9 +5,15 @@ interface BreakOverlayProps {
   snapshot: AntiRsiSnapshot
   config: AntiRsiConfig
   onPostpone?: () => void
+  onSkip?: () => void
 }
 
-const BreakOverlay = ({ snapshot, config, onPostpone }: BreakOverlayProps): React.JSX.Element => {
+const BreakOverlay = ({
+  snapshot,
+  config,
+  onPostpone,
+  onSkip
+}: BreakOverlayProps): React.JSX.Element => {
   const breakState = snapshot.state
 
   if (breakState !== 'in-mini' && breakState !== 'in-work') {
@@ -39,14 +45,27 @@ const BreakOverlay = ({ snapshot, config, onPostpone }: BreakOverlayProps): Reac
         </p>
         <div className="text-7xl font-bold tracking-[0.08em]">{formatSeconds(remaining)}</div>
         <progress value={elapsed} max={breakDuration} aria-label="Break progress" />
-        {isWorkBreak && onPostpone ? (
-          <button
-            type="button"
-            className="mx-auto rounded-md border border-border bg-secondary px-5 py-2 text-sm font-semibold text-secondary-foreground transition-colors hover:opacity-90"
-            onClick={onPostpone}
-          >
-            Postpone
-          </button>
+        {isWorkBreak && (onPostpone || onSkip) ? (
+          <div className="flex gap-3">
+            {onPostpone ? (
+              <button
+                type="button"
+                className="mx-auto rounded-md border border-border bg-secondary px-5 py-2 text-sm font-semibold text-secondary-foreground transition-colors hover:opacity-90"
+                onClick={onPostpone}
+              >
+                Postpone
+              </button>
+            ) : null}
+            {onSkip ? (
+              <button
+                type="button"
+                className="mx-auto rounded-md border border-border bg-destructive px-5 py-2 text-sm font-semibold text-destructive-foreground transition-colors hover:opacity-90"
+                onClick={onSkip}
+              >
+                Skip
+              </button>
+            ) : null}
+          </div>
         ) : null}
       </div>
     </div>

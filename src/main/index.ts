@@ -1,44 +1,54 @@
-import {
-  app,
-  shell,
-  BrowserWindow,
-  ipcMain,
-  screen,
-  Tray,
-  Menu,
-  nativeImage,
-  MenuItemConstructorOptions
-} from 'electron'
+import { app, shell, BrowserWindow } from 'electron'
 import { join } from 'path'
 import { optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
-import { AntiRsiConfig, AntiRsiEvent, AntiRsiSnapshot, BreakType } from '../common/antirsi-core'
+import { IPC_EVENTS } from '../common/actions'
 import ConfigStore from './lib/config-store'
 import AntiRsiService from './lib/antirsi-service'
+import { wireIpcHandlers } from './ipc'
+import { ProcessWatcherService } from './lib/process-watcher-service'
+import ProcessStore from './lib/process-store'
+import { broadcastAntiRsiEvent, loadRenderer } from './lib/window-utils'
+import { ensureApplicationMenu } from './lib/application-menu'
+import { TrayManager } from './lib/tray-manager'
+import { OverlayManager } from './lib/overlay-manager'
 
 let mainWindow: BrowserWindow | null = null
-let antiRsiService: AntiRsiService | null = null
-let overlayWindows: BrowserWindow[] = []
-let tray: Tray | null = null
 
 app.setName('Anti RSI')
 
-const loadRenderer = (
-  window: BrowserWindow,
-  options?: { overlay?: boolean; route?: string }
-): void => {
-  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    const url = options?.route
-      ? `${process.env['ELECTRON_RENDERER_URL']}#${options.route}`
-      : process.env['ELECTRON_RENDERER_URL']
-    window.loadURL(url)
-  } else {
-    const hash = options?.route
-    window.loadFile(join(__dirname, '../renderer/index.html'), hash ? { hash } : undefined)
-  }
-}
+// Initialize services
+const configStore = new ConfigStore(app.getPath('userData'))
+const processStore = new ProcessStore()
+const trayManager = new TrayManager()
+const overlayManager = new OverlayManager(is.dev)
+const processWatcherService = new ProcessWatcherService()
 
-function createWindow(): void {
+// Initialize AntiRsiService (will be configured in app.whenReady)
+const antiRsiService = new AntiRsiService({
+  callbacks: {
+    onEvent: (event, snapshot) => {
+      broadcastAntiRsiEvent(event, snapshot)
+
+      if (event.type === 'mini-break-start') {
+        overlayManager.ensureOverlayWindows('mini')
+      } else if (event.type === 'work-break-start') {
+        overlayManager.ensureOverlayWindows('work')
+      } else if (event.type === 'break-end') {
+        overlayManager.hideOverlayWindows()
+      }
+    },
+    onConfigChanged: (config) => {
+      BrowserWindow.getAllWindows().forEach((window) => {
+        window.webContents.send(IPC_EVENTS.CONFIG, config)
+      })
+    }
+  },
+  configStore,
+  initialConfig: undefined
+})
+
+function createMainWindow(): void {
   // Create the browser window.
   mainWindow = new BrowserWindow({
     width: 900,
@@ -74,86 +84,9 @@ function createWindow(): void {
   loadRenderer(mainWindow)
 }
 
-const broadcastAntiRsiEvent = (event: AntiRsiEvent, snapshot: AntiRsiSnapshot): void => {
-  BrowserWindow.getAllWindows().forEach((window) => {
-    window.webContents.send('antirsi:event', event, snapshot)
-  })
-}
-
-const ensureOverlayWindows = (breakType: BreakType): void => {
-  const displays = screen.getAllDisplays()
-  if (overlayWindows.length === displays.length) {
-    overlayWindows.forEach((window) => {
-      const route = breakType === 'mini' ? '/micro-break' : '/work-break'
-      loadRenderer(window, { overlay: true, route })
-      window.webContents.send('antirsi:overlay-break', breakType)
-      window.showInactive()
-    })
-    return
-  }
-
-  hideOverlayWindows()
-
-  overlayWindows = displays.map((display) => {
-    const overlayWindow = new BrowserWindow({
-      x: display.bounds.x,
-      y: display.bounds.y,
-      width: display.bounds.width,
-      height: display.bounds.height,
-      show: false,
-      frame: false,
-      transparent: false,
-      resizable: false,
-      movable: false,
-      fullscreenable: false,
-      skipTaskbar: true,
-      focusable: true,
-      alwaysOnTop: true,
-      backgroundColor: '#0d0d15',
-      webPreferences: {
-        preload: join(__dirname, '../preload/index.js'),
-        sandbox: false
-      }
-    })
-
-    overlayWindow.setAlwaysOnTop(true, 'screen-saver')
-    overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
-    const route = breakType === 'mini' ? '/micro-break' : '/work-break'
-    loadRenderer(overlayWindow, { overlay: true, route })
-    overlayWindow.on('close', (event) => {
-      if (overlayWindows.includes(overlayWindow)) {
-        event.preventDefault()
-        overlayWindow.hide()
-      }
-    })
-    overlayWindow.once('ready-to-show', () => {
-      overlayWindow.showInactive()
-      overlayWindow.focus()
-      overlayWindow.webContents.send('antirsi:overlay-break', breakType)
-    })
-    return overlayWindow
-  })
-}
-
-const hideOverlayWindows = (): void => {
-  if (overlayWindows.length === 0) {
-    return
-  }
-  overlayWindows.forEach((window) => {
-    window.removeAllListeners('close')
-    window.close()
-  })
-  overlayWindows = []
-}
-
-const resolveResourcePath = (assetName: string): string => {
-  const resourcesRoot = app.isPackaged ? process.resourcesPath : join(process.cwd(), 'resources')
-  return join(resourcesRoot, assetName)
-}
-
 const showOrCreateMainWindow = (): void => {
   if (!mainWindow) {
-    createWindow()
+    createMainWindow()
     return
   }
   if (mainWindow.isMinimized()) {
@@ -165,185 +98,50 @@ const showOrCreateMainWindow = (): void => {
   mainWindow.focus()
 }
 
-const ensureTray = (): void => {
-  if (tray) {
-    return
-  }
-
-  const trayIcon = nativeImage.createFromPath(resolveResourcePath('icon-menubarTemplate.png'))
-  if (!trayIcon.isEmpty()) {
-    trayIcon.setTemplateImage(true)
-  }
-
-  tray = new Tray(trayIcon)
-  tray.setToolTip('Anti RSI')
-  tray.on('click', () => {
-    showOrCreateMainWindow()
-  })
-
-  const trayMenu = Menu.buildFromTemplate([
-    {
-      label: 'Show Anti RSI',
-      click: () => {
-        showOrCreateMainWindow()
-      }
-    },
-    { type: 'separator' },
-    {
-      label: 'Pause Monitoring',
-      click: () => {
-        antiRsiService?.pause()
-      }
-    },
-    {
-      label: 'Resume Monitoring',
-      click: () => {
-        antiRsiService?.resume()
-      }
-    },
-    { type: 'separator' },
-    {
-      label: 'Quit Anti RSI',
-      role: 'quit'
-    }
-  ])
-
-  tray.setContextMenu(trayMenu)
-}
-
-const ensureApplicationMenu = (): void => {
-  const template: MenuItemConstructorOptions[] = [
-    {
-      label: app.name,
-      submenu: [
-        { role: 'about' },
-        { type: 'separator' },
-        { role: 'services' },
-        { type: 'separator' },
-        { role: 'hide' },
-        { role: 'hideOthers' },
-        { role: 'unhide' },
-        { type: 'separator' },
-        { role: 'quit' }
-      ]
-    },
-    {
-      label: 'File',
-      submenu: [
-        {
-          label: 'New Window',
-          accelerator: 'Command+N',
-          click: () => {
-            showOrCreateMainWindow()
-          }
-        },
-        { type: 'separator' },
-        { role: 'close' }
-      ]
-    },
-    {
-      label: 'Edit',
-      submenu: [
-        { role: 'undo' },
-        { role: 'redo' },
-        { type: 'separator' },
-        { role: 'cut' },
-        { role: 'copy' },
-        { role: 'paste' },
-        { role: 'pasteAndMatchStyle' },
-        { role: 'delete' },
-        { role: 'selectAll' }
-      ]
-    },
-    {
-      label: 'View',
-      submenu: [
-        ...(is.dev
-          ? ([
-              { role: 'reload' },
-              { role: 'forceReload' },
-              { role: 'toggleDevTools' }
-            ] satisfies MenuItemConstructorOptions[])
-          : []),
-        { type: 'separator' },
-        { role: 'togglefullscreen' }
-      ]
-    },
-    {
-      label: 'Window',
-      submenu: [{ role: 'minimize' }, { role: 'zoom' }, { type: 'separator' }, { role: 'front' }]
-    },
-    {
-      role: 'help',
-      submenu: [
-        {
-          label: 'Learn More',
-          click: async () => {
-            await shell.openExternal('https://github.com/ruuda/antiRSI')
-          }
-        }
-      ]
-    }
-  ]
-
-  const menu = Menu.buildFromTemplate(template)
-  Menu.setApplicationMenu(menu)
-}
-
 app.whenReady().then(async () => {
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  const configStore = new ConfigStore(app.getPath('userData'))
+  // Load persisted config and configure AntiRsiService
   const persistedConfig = await configStore.load()
-  antiRsiService = new AntiRsiService({
-    callbacks: {
-      onEvent: (event, snapshot) => {
-        broadcastAntiRsiEvent(event, snapshot)
-        if (event.type === 'mini-break-start') {
-          ensureOverlayWindows('mini')
-        } else if (event.type === 'work-break-start') {
-          ensureOverlayWindows('work')
-        } else if (event.type === 'break-end') {
-          hideOverlayWindows()
-        }
-      },
-      onConfigChanged: (config) => {
-        BrowserWindow.getAllWindows().forEach((window) => {
-          window.webContents.send('antirsi:config', config)
-        })
+  antiRsiService.setConfig(persistedConfig || {})
+
+  processWatcherService.start({
+    store: processStore,
+    onTick: (processes) => {
+      if (processes.size > 0) {
+        antiRsiService.pause()
+      } else {
+        antiRsiService.resume()
       }
-    },
-    configStore,
-    initialConfig: persistedConfig
+    }
   })
 
   antiRsiService.start()
-  ensureTray()
-  ensureApplicationMenu()
 
-  ipcMain.handle('antirsi:get-snapshot', () => antiRsiService?.getSnapshot())
-  ipcMain.handle('antirsi:get-config', () => antiRsiService?.getConfig())
-  ipcMain.handle('antirsi:set-config', async (_event, config: Partial<AntiRsiConfig>) => {
-    if (!antiRsiService) {
-      return
-    }
-
-    await antiRsiService.setConfig(config)
-    return antiRsiService.getConfig()
+  trayManager.ensureTray({
+    showOrCreateMainWindow,
+    pauseMonitoring: () => antiRsiService.pause(),
+    resumeMonitoring: () => antiRsiService.resume()
   })
-  ipcMain.handle('antirsi:trigger-work-break', () => antiRsiService?.triggerWorkBreak())
-  ipcMain.handle('antirsi:postpone-work-break', () => antiRsiService?.postponeWorkBreak())
-  ipcMain.handle('antirsi:pause', () => antiRsiService?.pause())
-  ipcMain.handle('antirsi:resume', () => antiRsiService?.resume())
-  ipcMain.handle('antirsi:reset-timings', () => antiRsiService?.resetTimings())
 
-  createWindow()
+  ensureApplicationMenu({
+    showOrCreateMainWindow
+  })
+
+  processStore.subscribe((list) => {
+    BrowserWindow.getAllWindows().forEach((window) => {
+      window.webContents.send(IPC_EVENTS.PROCESSES_UPDATE, list)
+    })
+  })
+
+  wireIpcHandlers(antiRsiService, processStore)
+  createMainWindow()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow()
+      createMainWindow()
     }
   })
 })
@@ -353,9 +151,5 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
-  tray?.destroy()
-  tray = null
+  trayManager.destroy()
 })
-
-// In this file you can include the rest of your app's specific main process
-// code. You can also put them in separate files and require them here.

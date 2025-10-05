@@ -33,7 +33,8 @@
     "lucide-react": "^0.544.0",
     "nanoid": "^5.1.6",
     "npm": "^11.6.1",
-    "tailwindcss": "^4.1.13"
+    "tailwindcss": "^4.1.13",
+    "zustand": "5.0.8"
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config-prettier": "^3.0.0",

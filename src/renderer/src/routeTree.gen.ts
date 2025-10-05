@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WorkBreakRouteImport } from './routes/work-break'
 import { Route as MicroBreakRouteImport } from './routes/micro-break'
+import { Route as ConfigRouteImport } from './routes/config'
 import { Route as IndexRouteImport } from './routes/index'
 
 const WorkBreakRoute = WorkBreakRouteImport.update({
@@ -23,6 +24,11 @@ const MicroBreakRoute = MicroBreakRouteImport.update({
   path: '/micro-break',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ConfigRoute = ConfigRouteImport.update({
+  id: '/config',
+  path: '/config',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -31,30 +37,34 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/config': typeof ConfigRoute
   '/micro-break': typeof MicroBreakRoute
   '/work-break': typeof WorkBreakRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/config': typeof ConfigRoute
   '/micro-break': typeof MicroBreakRoute
   '/work-break': typeof WorkBreakRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/config': typeof ConfigRoute
   '/micro-break': typeof MicroBreakRoute
   '/work-break': typeof WorkBreakRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/micro-break' | '/work-break'
+  fullPaths: '/' | '/config' | '/micro-break' | '/work-break'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/micro-break' | '/work-break'
-  id: '__root__' | '/' | '/micro-break' | '/work-break'
+  to: '/' | '/config' | '/micro-break' | '/work-break'
+  id: '__root__' | '/' | '/config' | '/micro-break' | '/work-break'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ConfigRoute: typeof ConfigRoute
   MicroBreakRoute: typeof MicroBreakRoute
   WorkBreakRoute: typeof WorkBreakRoute
 }
@@ -75,6 +85,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MicroBreakRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/config': {
+      id: '/config'
+      path: '/config'
+      fullPath: '/config'
+      preLoaderRoute: typeof ConfigRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -87,6 +104,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ConfigRoute: ConfigRoute,
   MicroBreakRoute: MicroBreakRoute,
   WorkBreakRoute: WorkBreakRoute,
 }

@@ -227,6 +227,16 @@ export class AntiRsiCore {
     this.emit({ type: 'status-update' })
   }
 
+  skipWorkBreak(): void {
+    if (this.paused) {
+      return
+    }
+    if (this.snapshot.state === 'in-work') {
+      this.endWorkBreak()
+    }
+    this.emit({ type: 'status-update' })
+  }
+
   pause(): void {
     if (this.paused) {
       return
