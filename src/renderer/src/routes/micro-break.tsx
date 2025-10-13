@@ -1,22 +1,31 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useAntiRsi } from '../hooks/useAntiRsi'
-import { useConfig } from '../hooks/useConfig'
 import { useOverlayMode } from '../hooks/useOverlayMode'
 import BreakOverlay from '../components/BreakOverlay'
+import { Result, useAtomValue } from '@effect-atom/atom-react'
+import { configAtom, snapshotAtom } from '@renderer/stores/antirsi'
 
 export const Route = createFileRoute('/micro-break')({
   component: MicroBreakRoute
 })
 
 function MicroBreakRoute(): React.JSX.Element {
-  const { snapshot } = useAntiRsi()
-  const config = useConfig()
+  const snapshot = useAtomValue(snapshotAtom)
+  const config = useAtomValue(configAtom)
 
   useOverlayMode({ isEnabled: true })
 
-  if (!snapshot || !config) {
-    return <div />
-  }
-
-  return <BreakOverlay snapshot={snapshot} config={config} />
+  return Result.all([snapshot, config]).pipe(
+    Result.match({
+      onInitial: () => {
+        return <div>Loading snapshot or config for micro break...</div>
+      },
+      onFailure: () => {
+        return <div>Error loading snapshot or config for micro break</div>
+      },
+      onSuccess: (r) => {
+        const [snapshot, config] = r.value
+        return <BreakOverlay snapshot={snapshot} config={config} />
+      }
+    })
+  )
 }

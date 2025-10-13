@@ -23,12 +23,17 @@
     "build:linux": "electron-vite build && electron-builder --linux"
   },
   "dependencies": {
+    "@effect-atom/atom-react": "^0.3.2",
+    "@effect/language-service": "^0.44.0",
+    "@effect/platform": "^0.92.1",
+    "@effect/platform-node": "^0.98.3",
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
     "@tailwindcss/vite": "^4.1.13",
     "@tanstack/react-router": "^1.132.19",
     "@tanstack/react-router-devtools": "^1.132.19",
     "class-variance-authority": "^0.7.1",
+    "effect": "^3.18.4",
     "electron-updater": "^6.3.9",
     "lucide-react": "^0.544.0",
     "nanoid": "^5.1.6",

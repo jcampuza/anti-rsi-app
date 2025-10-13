@@ -227,6 +227,14 @@ export class AntiRsiCore {
     this.emit({ type: 'status-update' })
   }
 
+  triggerMicroPause(): void {
+    if (this.paused) {
+      return
+    }
+    this.startMiniBreak()
+    this.emit({ type: 'status-update' })
+  }
+
   skipWorkBreak(): void {
     if (this.paused) {
       return

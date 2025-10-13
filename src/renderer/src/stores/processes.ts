@@ -1,32 +1,22 @@
-import { create } from 'zustand'
-import type { ProcessesRendererApi } from '@renderer/hooks/useAntiRsiApi'
+import { Atom } from '@effect-atom/atom-react'
+import { Chunk, Effect, Stream } from 'effect'
+import { ProcessesService } from '@renderer/utils/anti-rsi-layer'
+import { storeRuntime } from '@renderer/stores/antirsi'
 
-interface ProcessesState {
-  processes: string[]
-  initialized: boolean
-  init: () => void
-}
+const processStream = Effect.gen(function* () {
+  const api = yield* ProcessesService
 
-const getApi = (): ProcessesRendererApi => window.api.processes
-
-export const useProcessesStore = create<ProcessesState>((set, get) => ({
-  processes: [],
-  initialized: false,
-  init: () => {
-    if (get().initialized) {
-      return
-    }
-    const api = getApi()
-
-    api
-      .getProcesses()
-      .then((list) => {
-        if (Array.isArray(list)) set({ processes: list })
+  return Stream.concat(
+    Stream.fromEffect(
+      Effect.promise(() => api.getProcesses()).pipe(Effect.map((r) => (r === undefined ? [] : r)))
+    ),
+    Stream.async<string[]>((emit) => {
+      const unsubscribe = api.subscribe((list) => {
+        emit(Effect.succeed(Chunk.of(list)))
       })
-      .catch(() => {})
+      return Effect.sync(() => unsubscribe())
+    })
+  )
+}).pipe(Stream.unwrap)
 
-    api.subscribe((list) => set({ processes: list }))
-
-    set({ initialized: true })
-  }
-}))
+export const processAtom = storeRuntime.atom(processStream).pipe(Atom.keepAlive)

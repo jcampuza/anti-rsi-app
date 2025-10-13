@@ -3,7 +3,7 @@ import type { AntiRsiSnapshot } from '../../../common/antirsi-core'
 import { Button } from '@renderer/components/ui/Button'
 
 interface HeaderActionsProps {
-  api: AntiRsiRendererApi | undefined
+  api: AntiRsiRendererApi
   snapshot: AntiRsiSnapshot
   disabled?: boolean
 }
@@ -13,31 +13,28 @@ export const HeaderActions = ({
   snapshot,
   disabled = false
 }: HeaderActionsProps): React.JSX.Element => {
-  const isActionDisabled = disabled || !api
+  const isActionDisabled = disabled
   const isPaused = snapshot.paused
 
   const handleTriggerWorkBreak = (): void => {
-    if (!api) {
-      return
-    }
     api.triggerWorkBreak().catch((error) => {
       console.error('[AntiRSI] Failed to trigger work break', error)
     })
   }
 
+  const handleTriggerMicroPause = (): void => {
+    api.triggerMicroPause().catch((error) => {
+      console.error('[AntiRSI] Failed to trigger micro pause', error)
+    })
+  }
+
   const handlePostponeWorkBreak = (): void => {
-    if (!api) {
-      return
-    }
     api.postponeWorkBreak().catch((error) => {
       console.error('[AntiRSI] Failed to postpone work break', error)
     })
   }
 
   const handleTogglePause = (): void => {
-    if (!api) {
-      return
-    }
     const action = isPaused ? api.resume : api.pause
     action()
       .then(() => {
@@ -49,9 +46,6 @@ export const HeaderActions = ({
   }
 
   const handleResetTimings = (): void => {
-    if (!api) {
-      return
-    }
     api.resetTimings().catch((error) => console.error('[AntiRSI] Failed to reset timers', error))
   }
 
@@ -68,15 +62,23 @@ export const HeaderActions = ({
       <Button
         type="button"
         variant="secondary"
+        onClick={handleTriggerMicroPause}
+        disabled={isActionDisabled}
+      >
+        Micro Pause
+      </Button>
+      <Button
+        type="button"
+        variant="secondary"
         onClick={handlePostponeWorkBreak}
         disabled={isActionDisabled}
       >
         Postpone Work Break
       </Button>
-      <Button type="button" variant="secondary" onClick={handleTogglePause} disabled={!api}>
+      <Button type="button" variant="secondary" onClick={handleTogglePause}>
         {isPaused ? 'Resume Timers' : 'Pause Timers'}
       </Button>
-      <Button type="button" variant="secondary" onClick={handleResetTimings} disabled={!api}>
+      <Button type="button" variant="secondary" onClick={handleResetTimings}>
         Reset Timers
       </Button>
     </div>

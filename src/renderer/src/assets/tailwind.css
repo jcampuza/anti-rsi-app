@@ -101,7 +101,7 @@
 
   /* Progress styling */
   progress::-webkit-progress-bar {
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--card);
   }
   progress::-webkit-progress-value {
     background: linear-gradient(90deg, #9679c4, #71d6ff);

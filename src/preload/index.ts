@@ -1,23 +1,27 @@
+import { Effect, Stream, Chunk } from 'effect'
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import { AntiRsiConfig, AntiRsiEvent, AntiRsiSnapshot } from '../common/antirsi-core'
 import { IPC_EVENTS, IPC_ACTIONS } from '../common/actions'
-import { AntiRsiRendererApi, ProcessesRendererApi } from './index.d'
 
 // Custom APIs for renderer
 type AntiRsiRendererCallback = (event: AntiRsiEvent, snapshot: AntiRsiSnapshot) => void
 type AntiRsiConfigCallback = (config: AntiRsiConfig) => void
 
-const antirsi: AntiRsiRendererApi = {
-  getSnapshot: (): Promise<AntiRsiSnapshot | undefined> =>
-    ipcRenderer.invoke(IPC_ACTIONS.GET_SNAPSHOT),
+export const antirsi = {
+  getSnapshot: (): Promise<AntiRsiSnapshot> => ipcRenderer.invoke(IPC_ACTIONS.GET_SNAPSHOT),
 
-  getConfig: (): Promise<AntiRsiConfig | undefined> => ipcRenderer.invoke(IPC_ACTIONS.GET_CONFIG),
+  getConfig: (): Promise<AntiRsiConfig> => ipcRenderer.invoke(IPC_ACTIONS.GET_CONFIG),
 
   setConfig: (config: Partial<AntiRsiConfig>): Promise<AntiRsiConfig | undefined> =>
     ipcRenderer.invoke(IPC_ACTIONS.SET_CONFIG, config),
 
+  resetConfigToDefaults: (): Promise<AntiRsiConfig | undefined> =>
+    ipcRenderer.invoke(IPC_ACTIONS.RESET_CONFIG_TO_DEFAULTS),
+
   triggerWorkBreak: (): Promise<void> => ipcRenderer.invoke(IPC_ACTIONS.TRIGGER_WORK_BREAK),
+
+  triggerMicroPause: (): Promise<void> => ipcRenderer.invoke(IPC_ACTIONS.TRIGGER_MICRO_PAUSE),
 
   postponeWorkBreak: (): Promise<void> => ipcRenderer.invoke(IPC_ACTIONS.POSTPONE_WORK_BREAK),
 
@@ -50,18 +54,36 @@ const antirsi: AntiRsiRendererApi = {
   }
 }
 
-const processes: ProcessesRendererApi = {
+// Enhanced preload/index.ts
+
+export const processes = {
   getProcesses: (): Promise<string[] | undefined> => ipcRenderer.invoke(IPC_ACTIONS.GET_PROCESSES),
+
+  // Keep existing callback-based for backward compatibility
   subscribe: (callback: (processes: string[]) => void): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent, list: string[]): void => {
       callback(list)
     }
     ipcRenderer.on(IPC_EVENTS.PROCESSES_UPDATE, listener)
     return () => ipcRenderer.removeListener(IPC_EVENTS.PROCESSES_UPDATE, listener)
-  }
+  },
+
+  // New stream-based subscription
+  subscribeStream: () =>
+    Stream.async<string[]>((emit) => {
+      const listener = (_event: Electron.IpcRendererEvent, list: string[]) => {
+        emit(Effect.succeed(Chunk.of(list)))
+      }
+
+      ipcRenderer.on(IPC_EVENTS.PROCESSES_UPDATE, listener)
+
+      return Effect.sync(() => {
+        ipcRenderer.removeListener(IPC_EVENTS.PROCESSES_UPDATE, listener)
+      })
+    })
 }
 
-const api = {
+export const api = {
   antirsi,
   processes
 }

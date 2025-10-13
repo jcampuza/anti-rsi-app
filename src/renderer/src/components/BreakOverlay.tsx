@@ -18,7 +18,7 @@ const BreakOverlay = ({
 
   if (breakState !== 'in-mini' && breakState !== 'in-work') {
     return (
-      <div className="fixed inset-0 flex flex-col items-center justify-center gap-4 bg-background px-10 py-10 text-foreground">
+      <div className="fixed inset-0 flex flex-col items-center justify-center gap-4 bg-background/90 backdrop-blur-sm px-10 py-10 text-foreground">
         <div className="flex max-w-lg flex-col gap-6 text-center">
           <h1 className="text-5xl font-bold">Break Complete</h1>
           <p className="text-lg text-muted-foreground">
@@ -36,7 +36,7 @@ const BreakOverlay = ({
 
   return (
     <div
-      className={`fixed inset-0 flex flex-col items-center justify-center gap-4 bg-background px-10 py-10 text-foreground`}
+      className={`fixed inset-0 flex flex-col items-center justify-center gap-4 bg-background/90 backdrop-blur-sm px-10 py-10 text-foreground`}
     >
       <div className="flex max-w-lg flex-col gap-6 text-center">
         <h1 className="text-5xl font-bold">{isWorkBreak ? 'Work Break' : 'Micro Break'}</h1>
@@ -44,7 +44,12 @@ const BreakOverlay = ({
           Relax your hands and look away from the screen.
         </p>
         <div className="text-7xl font-bold tracking-[0.08em]">{formatSeconds(remaining)}</div>
-        <progress value={elapsed} max={breakDuration} aria-label="Break progress" />
+        <progress
+          value={elapsed}
+          max={breakDuration}
+          aria-label="Break progress"
+          className="mx-auto h-2 w-full max-w-md"
+        />
         {isWorkBreak && (onPostpone || onSkip) ? (
           <div className="flex gap-3">
             {onPostpone ? (

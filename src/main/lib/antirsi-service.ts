@@ -3,7 +3,8 @@ import {
   AntiRsiCore,
   AntiRsiConfig,
   AntiRsiEvent,
-  AntiRsiSnapshot
+  AntiRsiSnapshot,
+  defaultConfig
 } from '../../common/antirsi-core'
 import ConfigStore from './config-store'
 
@@ -59,8 +60,20 @@ class AntiRsiService {
     this.callbacks.onConfigChanged?.(currentConfig)
   }
 
+  async resetConfigToDefaults(): Promise<void> {
+    const defaultConf = defaultConfig()
+    this.core.setConfig(defaultConf)
+    this.restartTimer()
+    await this.configStore.save(defaultConf)
+    this.callbacks.onConfigChanged?.(defaultConf)
+  }
+
   triggerWorkBreak(): void {
     this.core.triggerWorkBreak()
+  }
+
+  triggerMicroPause(): void {
+    this.core.triggerMicroPause()
   }
 
   postponeWorkBreak(): void {

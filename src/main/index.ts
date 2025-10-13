@@ -6,12 +6,12 @@ import { IPC_EVENTS } from '../common/actions'
 import ConfigStore from './lib/config-store'
 import AntiRsiService from './lib/antirsi-service'
 import { wireIpcHandlers } from './ipc'
-import { ProcessWatcherService } from './lib/process-watcher-service'
-import ProcessStore from './lib/process-store'
+import ProcessService from './lib/process-service'
 import { broadcastAntiRsiEvent, loadRenderer } from './lib/window-utils'
 import { ensureApplicationMenu } from './lib/application-menu'
 import { TrayManager } from './lib/tray-manager'
 import { OverlayManager } from './lib/overlay-manager'
+import { Effect } from 'effect'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -19,10 +19,9 @@ app.setName('Anti RSI')
 
 // Initialize services
 const configStore = new ConfigStore(app.getPath('userData'))
-const processStore = new ProcessStore()
+const processService = new ProcessService()
 const trayManager = new TrayManager()
 const overlayManager = new OverlayManager(is.dev)
-const processWatcherService = new ProcessWatcherService()
 
 // Initialize AntiRsiService (will be configured in app.whenReady)
 const antiRsiService = new AntiRsiService({
@@ -107,8 +106,7 @@ app.whenReady().then(async () => {
   const persistedConfig = await configStore.load()
   antiRsiService.setConfig(persistedConfig || {})
 
-  processWatcherService.start({
-    store: processStore,
+  processService.start({
     onTick: (processes) => {
       if (processes.size > 0) {
         antiRsiService.pause()
@@ -130,13 +128,13 @@ app.whenReady().then(async () => {
     showOrCreateMainWindow
   })
 
-  processStore.subscribe((list) => {
+  processService.subscribe((list) => {
     BrowserWindow.getAllWindows().forEach((window) => {
       window.webContents.send(IPC_EVENTS.PROCESSES_UPDATE, list)
     })
   })
 
-  wireIpcHandlers(antiRsiService, processStore)
+  Effect.runSync(wireIpcHandlers(antiRsiService, processService))
   createMainWindow()
 
   app.on('activate', () => {

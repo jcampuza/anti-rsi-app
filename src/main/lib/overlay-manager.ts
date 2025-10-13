@@ -30,14 +30,13 @@ export class OverlayManager {
         height: display.bounds.height,
         show: false,
         frame: false,
-        transparent: false,
+        transparent: true,
         resizable: false,
         movable: false,
         fullscreenable: false,
         skipTaskbar: true,
         focusable: true,
         alwaysOnTop: !this.isDevelopment,
-        backgroundColor: '#0d0d15',
         webPreferences: {
           preload: getPreloadPath(),
           sandbox: false

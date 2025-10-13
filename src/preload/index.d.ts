@@ -1,33 +1,20 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
 import { AntiRsiConfig, AntiRsiEvent, AntiRsiSnapshot } from '../common/antirsi-core'
+import { Effect, Stream } from 'effect'
+
+// Import the actual implementations to infer types
+import type { antirsi, processes, api } from './index'
+
+// Infer types from the actual implementations
+export type AntiRsiRendererApi = typeof antirsi
+export type ProcessesRendererApi = typeof processes
+export type ApiType = typeof api
 
 declare global {
   interface Window {
     electron: ElectronAPI
-    api: {
-      antirsi: AntiRsiRendererApi
-      processes: ProcessesRendererApi
-    }
+    api: ApiType
     antirsi: AntiRsiRendererApi
     processes: ProcessesRendererApi
   }
-}
-
-export interface AntiRsiRendererApi {
-  getSnapshot: () => Promise<AntiRsiSnapshot | undefined>
-  getConfig: () => Promise<AntiRsiConfig | undefined>
-  setConfig: (config: Partial<AntiRsiConfig>) => Promise<AntiRsiConfig | undefined>
-  triggerWorkBreak: () => Promise<void>
-  postponeWorkBreak: () => Promise<void>
-  skipWorkBreak: () => Promise<void>
-  pause: () => Promise<void>
-  resume: () => Promise<void>
-  resetTimings: () => Promise<void>
-  subscribe: (callback: (event: AntiRsiEvent, snapshot: AntiRsiSnapshot) => void) => () => void
-  subscribeConfig: (callback: (config: AntiRsiConfig) => void) => () => void
-}
-
-export interface ProcessesRendererApi {
-  getProcesses: () => Promise<string[] | undefined>
-  subscribe: (callback: (processes: string[]) => void) => () => void
 }
