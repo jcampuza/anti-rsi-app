@@ -9,6 +9,16 @@ export class ProcessService {
   private processes: Set<string> = new Set<string>()
   private emitter = new EventEmitter()
   private intervalId: NodeJS.Timeout | undefined
+  private watched: string[]
+  private intervalMs: number
+  private debounceMs: number
+  private debounceTimer: NodeJS.Timeout | undefined
+
+  constructor(options: { watched?: string[]; intervalMs?: number; debounceMs?: number } = {}) {
+    this.watched = options.watched ?? WATCHED_PROCESSES
+    this.intervalMs = options.intervalMs ?? 2500
+    this.debounceMs = options.debounceMs ?? 400
+  }
 
   getProcesses(): Set<string> {
     return new Set(this.processes)
@@ -24,34 +34,43 @@ export class ProcessService {
   }
 
   private getRunningProcesses(): Promise<Set<string>> {
-    return new Promise<Set<string>>((resolve, reject) => {
-      let processes = new Set<string>()
-      exec('ps -axo comm', (error, stdout) => {
+    const checks = this.watched.map((name) => this.isRunningExact(name))
+    return Promise.all(checks).then((results) => {
+      const set = new Set<string>()
+      results.forEach((running, idx) => {
+        if (running) set.add(this.watched[idx])
+      })
+      return set
+    })
+  }
+
+  private isRunningExact(name: string): Promise<boolean> {
+    return new Promise<boolean>((resolve) => {
+      // Quote the name to avoid shell interpretation; -x matches the exact process name
+      exec(`pgrep -x ${this.escapeArg(name)}`, (error, stdout) => {
         if (error) {
-          console.error(error)
-          reject(error)
+          resolve(false)
+          return
         }
-
-        for (const line of stdout.split('\n')) {
-          const trimmed = line.trim()
-          if (!trimmed) continue
-          for (const process of WATCHED_PROCESSES) {
-            if (trimmed.includes(process)) {
-              processes.add(process)
-            }
-          }
-        }
-
-        resolve(processes)
+        resolve(stdout.trim().length > 0)
       })
     })
   }
 
+  private escapeArg(value: string): string {
+    return `'${value.replace(/'/g, "'\\''")}'`
+  }
+
   private setProcesses(newProcesses: Set<string>): void {
-    if (!this.areSetsEqual(this.processes, newProcesses)) {
-      this.processes = new Set(newProcesses)
-      this.emitter.emit('change', this.getProcessesList())
+    if (this.areSetsEqual(this.processes, newProcesses)) return
+    this.processes = new Set(newProcesses)
+
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer)
     }
+    this.debounceTimer = setTimeout(() => {
+      this.emitter.emit('change', this.getProcessesList())
+    }, this.debounceMs)
   }
 
   private areSetsEqual(a: Set<string>, b: Set<string>): boolean {
@@ -64,17 +83,22 @@ export class ProcessService {
 
   start(options: { onTick?: (processes: Set<string>) => void } = {}): void {
     this.intervalId = setInterval(async () => {
-      const processes = await this.getRunningProcesses()
-      this.setProcesses(processes)
-      options.onTick?.(processes)
-    }, 1000)
+      try {
+        const processes = await this.getRunningProcesses()
+        this.setProcesses(processes)
+        options.onTick?.(processes)
+      } catch (e) {
+        console.error(e)
+      }
+    }, this.intervalMs)
   }
 
   stop(): void {
     if (this.intervalId) {
       clearInterval(this.intervalId)
     }
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer)
+    }
   }
 }
-
-export default ProcessService

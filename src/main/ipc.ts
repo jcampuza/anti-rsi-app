@@ -1,40 +1,33 @@
 import { ipcMain } from 'electron'
-import { AntiRsiConfig } from '../common/antirsi-core'
-import { IPC_ACTIONS } from '../common/actions'
-import AntiRsiService from './lib/antirsi-service'
-import ProcessService from './lib/process-service'
+import { IPC_ACTIONS, IPC_EVENTS } from '../common/actions'
+import { type Store } from '../common/store/store'
 import { Effect } from 'effect'
+import { type Action } from '../common/store/actions'
+import { selectConfig, selectProcesses, selectSnapshot } from '../common/store/selectors'
 
-export const wireIpcHandlers = (antiRsiService: AntiRsiService, processService: ProcessService) => {
+export const wireIpcHandlers = (store: Store): Effect.Effect<void> => {
   return Effect.sync(() => {
-    ipcMain.handle(IPC_ACTIONS.GET_SNAPSHOT, () => antiRsiService.getSnapshot())
+    ipcMain.handle(IPC_ACTIONS.GET_SNAPSHOT, () => selectSnapshot(store.getState()))
 
-    ipcMain.handle(IPC_ACTIONS.GET_CONFIG, () => antiRsiService.getConfig())
+    ipcMain.handle(IPC_ACTIONS.GET_CONFIG, () => selectConfig(store.getState()))
 
-    ipcMain.handle(IPC_ACTIONS.SET_CONFIG, async (_event, config: Partial<AntiRsiConfig>) => {
-      await antiRsiService.setConfig(config)
-      return antiRsiService.getConfig()
+    ipcMain.handle(IPC_ACTIONS.GET_PROCESSES, () => selectProcesses(store.getState()))
+
+    // One-shot init emission: when a renderer calls SUBSCRIBE_ALL, immediately send current state
+    ipcMain.handle(IPC_ACTIONS.SUBSCRIBE_ALL, (event) => {
+      const config = selectConfig(store.getState())
+      const snapshot = selectSnapshot(store.getState())
+      const processes = selectProcesses(store.getState())
+      event.sender.send(IPC_EVENTS.EVENT, {
+        type: 'init',
+        config,
+        snapshot,
+        processes
+      })
     })
 
-    ipcMain.handle(IPC_ACTIONS.RESET_CONFIG_TO_DEFAULTS, async () => {
-      await antiRsiService.resetConfigToDefaults()
-      return antiRsiService.getConfig()
+    ipcMain.handle(IPC_ACTIONS.COMMAND, async (_event, action: Action) => {
+      return store.dispatch(action)
     })
-
-    ipcMain.handle(IPC_ACTIONS.TRIGGER_WORK_BREAK, () => antiRsiService.triggerWorkBreak())
-
-    ipcMain.handle(IPC_ACTIONS.TRIGGER_MICRO_PAUSE, () => antiRsiService.triggerMicroPause())
-
-    ipcMain.handle(IPC_ACTIONS.POSTPONE_WORK_BREAK, () => antiRsiService.postponeWorkBreak())
-
-    ipcMain.handle(IPC_ACTIONS.SKIP_WORK_BREAK, () => antiRsiService.skipWorkBreak())
-
-    ipcMain.handle(IPC_ACTIONS.PAUSE, () => antiRsiService.pause())
-
-    ipcMain.handle(IPC_ACTIONS.RESUME, () => antiRsiService.resume())
-
-    ipcMain.handle(IPC_ACTIONS.RESET_TIMINGS, () => antiRsiService.resetTimings())
-
-    ipcMain.handle(IPC_ACTIONS.GET_PROCESSES, () => Array.from(processService.getProcesses()))
   })
 }

@@ -1,8 +1,8 @@
 import { BrowserWindow, app } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
-import { AntiRsiEvent, AntiRsiSnapshot } from '../../common/antirsi-core'
-import { IPC_EVENTS } from '../../common/actions'
+import { type AntiRsiEvent, type AntiRsiSnapshot } from '../../common/antirsi-core'
+import { IPC_EVENTS, MainEvent } from '../../common/actions'
 
 export const loadRenderer = (
   window: BrowserWindow,
@@ -29,7 +29,8 @@ export const getPreloadPath = (): string => {
 }
 
 export const broadcastAntiRsiEvent = (event: AntiRsiEvent, snapshot: AntiRsiSnapshot): void => {
+  const payload: MainEvent = { type: 'antirsi', event, snapshot }
   BrowserWindow.getAllWindows().forEach((window) => {
-    window.webContents.send(IPC_EVENTS.EVENT, event, snapshot)
+    window.webContents.send(IPC_EVENTS.EVENT, payload)
   })
 }

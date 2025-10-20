@@ -2,7 +2,7 @@ import { promises as fs } from 'fs'
 import { dirname, join } from 'path'
 import type { AntiRsiConfig } from '../../common/antirsi-core'
 
-class ConfigStore {
+export class ConfigStore {
   private readonly filePath: string
 
   constructor(userDataPath: string) {
@@ -32,5 +32,3 @@ class ConfigStore {
     }
   }
 }
-
-export default ConfigStore

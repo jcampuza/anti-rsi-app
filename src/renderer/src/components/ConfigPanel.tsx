@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react'
 import type { AntiRsiRendererApi } from '../hooks/useAntiRsiApi'
-import type { BreakConfig, AntiRsiConfig } from '../../../common/antirsi-core'
+import type { BreakConfig, AntiRsiConfig } from 'src/common/antirsi-core'
 import { Button } from '@renderer/components/ui/Button'
 
 interface ConfigPanelProps {
   config: AntiRsiConfig
-  api: AntiRsiRendererApi | undefined
+  api: AntiRsiRendererApi
   onReset: () => void
 }
 
@@ -27,11 +27,13 @@ const ConfigPanel = ({ config, api, onReset }: ConfigPanelProps): React.JSX.Elem
   }, [config])
 
   const handleApply = (): void => {
-    if (!api) return
     api
-      .setConfig({
-        mini: miniConfig,
-        work: workConfig
+      .dispatch({
+        type: 'SET_CONFIG',
+        config: {
+          mini: miniConfig,
+          work: workConfig
+        }
       })
       .catch((error) => console.error('[AntiRSI] Failed to update config', error))
   }

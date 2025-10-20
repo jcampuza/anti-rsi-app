@@ -1,17 +1,19 @@
 import { app, shell, BrowserWindow } from 'electron'
 import { join } from 'path'
-import { optimizer, is } from '@electron-toolkit/utils'
+import { optimizer } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { IPC_EVENTS } from '../common/actions'
-import ConfigStore from './lib/config-store'
-import AntiRsiService from './lib/antirsi-service'
+import { ConfigStore } from './lib/config-store'
+import { AntiRsiService } from './lib/antirsi-service'
 import { wireIpcHandlers } from './ipc'
-import ProcessService from './lib/process-service'
+import { ProcessService } from './lib/process-service'
 import { broadcastAntiRsiEvent, loadRenderer } from './lib/window-utils'
 import { ensureApplicationMenu } from './lib/application-menu'
 import { TrayManager } from './lib/tray-manager'
 import { OverlayManager } from './lib/overlay-manager'
 import { Effect } from 'effect'
+import { AppOrchestrator } from './lib/app-orchestrator'
+import { createStore } from '../common/store/store'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -21,31 +23,32 @@ app.setName('Anti RSI')
 const configStore = new ConfigStore(app.getPath('userData'))
 const processService = new ProcessService()
 const trayManager = new TrayManager()
-const overlayManager = new OverlayManager(is.dev)
+const overlayManager = new OverlayManager()
 
-// Initialize AntiRsiService (will be configured in app.whenReady)
+// Initialize shared store and AntiRsiService
+const store = createStore()
+
 const antiRsiService = new AntiRsiService({
   callbacks: {
     onEvent: (event, snapshot) => {
       broadcastAntiRsiEvent(event, snapshot)
-
-      if (event.type === 'mini-break-start') {
-        overlayManager.ensureOverlayWindows('mini')
-      } else if (event.type === 'work-break-start') {
-        overlayManager.ensureOverlayWindows('work')
-      } else if (event.type === 'break-end') {
-        overlayManager.hideOverlayWindows()
-      }
     },
     onConfigChanged: (config) => {
+      const payload = { type: 'config-changed', config } as const
       BrowserWindow.getAllWindows().forEach((window) => {
-        window.webContents.send(IPC_EVENTS.CONFIG, config)
+        window.webContents.send(IPC_EVENTS.EVENT, payload)
       })
     }
   },
   configStore,
-  initialConfig: undefined
+  store
 })
+
+const orchestrator: AppOrchestrator = new AppOrchestrator(
+  antiRsiService,
+  processService,
+  overlayManager
+)
 
 function createMainWindow(): void {
   // Create the browser window.
@@ -59,7 +62,9 @@ function createMainWindow(): void {
     icon,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true
     }
   })
 
@@ -102,19 +107,13 @@ app.whenReady().then(async () => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  // Load persisted config and configure AntiRsiService
+  // Load persisted config into store
   const persistedConfig = await configStore.load()
-  antiRsiService.setConfig(persistedConfig || {})
+  if (persistedConfig) {
+    store.dispatch({ type: 'SET_CONFIG', config: persistedConfig })
+  }
 
-  processService.start({
-    onTick: (processes) => {
-      if (processes.size > 0) {
-        antiRsiService.pause()
-      } else {
-        antiRsiService.resume()
-      }
-    }
-  })
+  processService.start()
 
   antiRsiService.start()
 
@@ -128,14 +127,10 @@ app.whenReady().then(async () => {
     showOrCreateMainWindow
   })
 
-  processService.subscribe((list) => {
-    BrowserWindow.getAllWindows().forEach((window) => {
-      window.webContents.send(IPC_EVENTS.PROCESSES_UPDATE, list)
-    })
-  })
-
-  Effect.runSync(wireIpcHandlers(antiRsiService, processService))
+  Effect.runSync(wireIpcHandlers(store))
   createMainWindow()
+
+  orchestrator.start()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -150,4 +145,7 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   trayManager.destroy()
+  antiRsiService.stop()
+  processService.stop()
+  orchestrator.stop()
 })

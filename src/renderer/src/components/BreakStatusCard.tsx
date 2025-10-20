@@ -1,4 +1,4 @@
-import type { AntiRsiConfig, AntiRsiSnapshot, BreakType } from '../../../common/antirsi-core'
+import type { AntiRsiConfig, AntiRsiSnapshot, BreakType } from 'src/common/antirsi-core'
 import formatSeconds from '../utils/time'
 
 interface BreakStatusCardProps {

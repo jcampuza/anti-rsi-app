@@ -1,5 +1,5 @@
 import type { AntiRsiRendererApi } from '../hooks/useAntiRsiApi'
-import type { AntiRsiSnapshot } from '../../../common/antirsi-core'
+import type { AntiRsiSnapshot } from 'src/common/antirsi-core'
 import { Button } from '@renderer/components/ui/Button'
 
 interface HeaderActionsProps {
@@ -17,26 +17,27 @@ export const HeaderActions = ({
   const isPaused = snapshot.paused
 
   const handleTriggerWorkBreak = (): void => {
-    api.triggerWorkBreak().catch((error) => {
+    api.dispatch({ type: 'START_WORK_BREAK', naturalContinuation: false }).catch((error) => {
       console.error('[AntiRSI] Failed to trigger work break', error)
     })
   }
 
   const handleTriggerMicroPause = (): void => {
-    api.triggerMicroPause().catch((error) => {
+    api.dispatch({ type: 'START_MINI_BREAK' }).catch((error) => {
       console.error('[AntiRSI] Failed to trigger micro pause', error)
     })
   }
 
   const handlePostponeWorkBreak = (): void => {
-    api.postponeWorkBreak().catch((error) => {
+    api.dispatch({ type: 'POSTPONE_WORK_BREAK' }).catch((error) => {
       console.error('[AntiRSI] Failed to postpone work break', error)
     })
   }
 
   const handleTogglePause = (): void => {
-    const action = isPaused ? api.resume : api.pause
-    action()
+    const promise = api.dispatch({ type: 'SET_USER_PAUSED', value: !isPaused })
+
+    promise
       .then(() => {
         console.info(`[AntiRSI] ${isPaused ? 'Resumed' : 'Paused'} timers`)
       })
@@ -46,7 +47,9 @@ export const HeaderActions = ({
   }
 
   const handleResetTimings = (): void => {
-    api.resetTimings().catch((error) => console.error('[AntiRSI] Failed to reset timers', error))
+    api
+      .dispatch({ type: 'RESET_TIMINGS' })
+      .catch((error) => console.error('[AntiRSI] Failed to reset timers', error))
   }
 
   return (

@@ -31,8 +31,8 @@ function WorkBreakRoute() {
           <BreakOverlay
             snapshot={snapshot}
             config={config}
-            onPostpone={() => api.postponeWorkBreak()}
-            onSkip={() => api.skipWorkBreak()}
+            onPostpone={() => api.dispatch({ type: 'POSTPONE_WORK_BREAK' })}
+            onSkip={() => api.dispatch({ type: 'END_WORK_BREAK' })}
           />
         )
       }

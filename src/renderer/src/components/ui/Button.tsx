@@ -7,7 +7,8 @@ export const buttonVariants = cva(
       variant: {
         primary: 'bg-primary hover:bg-primary/90 text-primary-foreground',
         secondary: 'bg-secondary hover:bg-secondary/90 text-secondary-foreground',
-        link: 'text-foreground transition-all duration-200 hover:bg-secondary/25 hover:shadow'
+        link: 'text-foreground transition-all duration-200 hover:bg-secondary/25 hover:shadow',
+        destructive: 'bg-destructive hover:bg-destructive/90 text-destructive-foreground'
       }
     },
     defaultVariants: {
@@ -17,7 +18,7 @@ export const buttonVariants = cva(
 )
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary'
+  variant?: 'primary' | 'secondary' | 'destructive'
 }
 
 export function Button({ variant, ...props }: ButtonProps) {

@@ -1,4 +1,5 @@
-import type { AntiRsiConfig, AntiRsiSnapshot } from '../../../common/antirsi-core'
+import { Button } from '@renderer/components/ui/Button'
+import type { AntiRsiConfig, AntiRsiSnapshot } from 'src/common/antirsi-core'
 import formatSeconds from '../utils/time'
 
 interface BreakOverlayProps {
@@ -36,13 +37,11 @@ const BreakOverlay = ({
 
   return (
     <div
-      className={`fixed inset-0 flex flex-col items-center justify-center gap-4 bg-background/90 backdrop-blur-sm px-10 py-10 text-foreground`}
+      className={`fixed inset-0 flex flex-col items-center justify-center gap-4 bg-background/75 backdrop-blur-sm px-10 py-10 text-foreground`}
     >
       <div className="flex max-w-lg flex-col gap-6 text-center">
         <h1 className="text-5xl font-bold">{isWorkBreak ? 'Work Break' : 'Micro Break'}</h1>
-        <p className="text-lg text-muted-foreground">
-          Relax your hands and look away from the screen.
-        </p>
+        <p className="text-lg text-foreground">Relax your hands and look away from the screen.</p>
         <div className="text-7xl font-bold tracking-[0.08em]">{formatSeconds(remaining)}</div>
         <progress
           value={elapsed}
@@ -50,25 +49,18 @@ const BreakOverlay = ({
           aria-label="Break progress"
           className="mx-auto h-2 w-full max-w-md"
         />
-        {isWorkBreak && (onPostpone || onSkip) ? (
-          <div className="flex gap-3">
+
+        {onPostpone || onSkip ? (
+          <div className="flex gap-3 items-center justify-center">
             {onPostpone ? (
-              <button
-                type="button"
-                className="mx-auto rounded-md border border-border bg-secondary px-5 py-2 text-sm font-semibold text-secondary-foreground transition-colors hover:opacity-90"
-                onClick={onPostpone}
-              >
+              <Button type="button" variant="primary" onClick={onPostpone}>
                 Postpone
-              </button>
+              </Button>
             ) : null}
             {onSkip ? (
-              <button
-                type="button"
-                className="mx-auto rounded-md border border-border bg-destructive px-5 py-2 text-sm font-semibold text-destructive-foreground transition-colors hover:opacity-90"
-                onClick={onSkip}
-              >
+              <Button type="button" variant="secondary" onClick={onSkip}>
                 Skip
-              </button>
+              </Button>
             ) : null}
           </div>
         ) : null}

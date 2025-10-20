@@ -1,5 +1,5 @@
 export function Versions(): React.JSX.Element {
-  const versions = window.electron.process.versions
+  const versions = window.api.meta.versions
 
   return (
     <ul className="flex justify-center gap-4 text-xs text-text-tertiary">

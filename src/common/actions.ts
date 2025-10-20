@@ -1,3 +1,4 @@
+import type { AntiRsiConfig, AntiRsiEvent, AntiRsiSnapshot } from './antirsi-core'
 // IPC event constants for AntiRSI application
 
 // Main process -> Renderer events
@@ -12,17 +13,17 @@ export const IPC_EVENTS = {
 export const IPC_ACTIONS = {
   GET_SNAPSHOT: 'antirsi:get-snapshot',
   GET_CONFIG: 'antirsi:get-config',
-  SET_CONFIG: 'antirsi:set-config',
-  RESET_CONFIG_TO_DEFAULTS: 'antirsi:reset-config-to-defaults',
-  TRIGGER_WORK_BREAK: 'antirsi:trigger-work-break',
-  TRIGGER_MICRO_PAUSE: 'antirsi:trigger-micro-pause',
-  POSTPONE_WORK_BREAK: 'antirsi:postpone-work-break',
-  SKIP_WORK_BREAK: 'antirsi:skip-work-break',
-  PAUSE: 'antirsi:pause',
-  RESUME: 'antirsi:resume',
-  RESET_TIMINGS: 'antirsi:reset-timings',
-  GET_PROCESSES: 'antirsi:get-processes'
+  GET_PROCESSES: 'antirsi:get-processes',
+  SUBSCRIBE_ALL: 'antirsi:subscribe-all',
+  COMMAND: 'antirsi:command'
 } as const
 
 export type IpcEvent = (typeof IPC_EVENTS)[keyof typeof IPC_EVENTS]
 export type IpcAction = (typeof IPC_ACTIONS)[keyof typeof IPC_ACTIONS]
+
+// Unified main->renderer event bus payload
+export type MainEvent =
+  | { type: 'antirsi'; event: AntiRsiEvent; snapshot: AntiRsiSnapshot }
+  | { type: 'config-changed'; config: AntiRsiConfig }
+  | { type: 'processes-updated'; list: string[] }
+  | { type: 'init'; config: AntiRsiConfig; snapshot: AntiRsiSnapshot; processes: string[] }

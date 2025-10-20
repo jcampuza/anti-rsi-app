@@ -1,12 +1,10 @@
 import { BrowserWindow, screen } from 'electron'
-import { BreakType } from '../../common/antirsi-core'
+import { type BreakType } from '../../common/antirsi-core'
 import { IPC_EVENTS } from '../../common/actions'
 import { loadRenderer, getPreloadPath } from './window-utils'
 
 export class OverlayManager {
   private overlayWindows: BrowserWindow[] = []
-
-  constructor(private isDevelopment: boolean) {}
 
   ensureOverlayWindows(breakType: BreakType): void {
     const displays = screen.getAllDisplays()
@@ -36,17 +34,17 @@ export class OverlayManager {
         fullscreenable: false,
         skipTaskbar: true,
         focusable: true,
-        alwaysOnTop: !this.isDevelopment,
+        alwaysOnTop: true,
         webPreferences: {
           preload: getPreloadPath(),
-          sandbox: false
+          contextIsolation: true,
+          nodeIntegration: false,
+          sandbox: true
         }
       })
 
-      if (!this.isDevelopment) {
-        overlayWindow.setAlwaysOnTop(true, 'screen-saver')
-        overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
-      }
+      overlayWindow.setAlwaysOnTop(true, 'screen-saver')
+      overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
 
       const route = breakType === 'mini' ? '/micro-break' : '/work-break'
       loadRenderer(overlayWindow, { overlay: true, route })

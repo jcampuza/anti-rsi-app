@@ -16,7 +16,7 @@ function ConfigRoute(): React.JSX.Element {
 
   const handleReset = (): void => {
     api
-      .resetConfigToDefaults()
+      .dispatch({ type: 'RESET_CONFIG' })
       .catch((error) => console.error('[AntiRSI] Failed to reset config', error))
   }
 

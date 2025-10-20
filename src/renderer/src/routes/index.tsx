@@ -6,13 +6,34 @@ import { HeaderActions } from '../components/HeaderActions'
 import logo from '../../../../resources/icon.png'
 import { buttonVariants } from '@renderer/components/ui/Button'
 import { Result, useAtomValue } from '@effect-atom/atom-react'
-import { processAtom } from '@renderer/stores/processes'
+import { processAtom } from '@renderer/stores/antirsi'
 import { configAtom, snapshotAtom } from '@renderer/stores/antirsi'
 import useAntiRsiApi from '@renderer/hooks/useAntiRsiApi'
 
 export const Route = createFileRoute('/')({
   component: App
 })
+
+function Header() {
+  return (
+    <header className="app-region-no-drag flex items-center justify-between gap-6 text-foreground">
+      <div className="space-y-1">
+        <h1 className="text-3xl font-bold h-12 w-12">
+          <img src={logo} alt="AntiRSI" className="h-full w-full" />
+        </h1>
+      </div>
+
+      <Link
+        className={buttonVariants({
+          variant: 'link'
+        })}
+        to="/config"
+      >
+        <Settings className="h-5 w-5" />
+      </Link>
+    </header>
+  )
+}
 
 function App() {
   const api = useAntiRsiApi()
@@ -36,21 +57,7 @@ function App() {
 
         return (
           <div className="app-region-drag flex min-h-[520px] flex-col gap-4 rounded-2xl border border-border bg-background px-7 py-8">
-            <header className="app-region-no-drag flex items-center justify-between gap-6 text-foreground">
-              <div className="space-y-1">
-                <h1 className="text-3xl font-bold h-12 w-12">
-                  <img src={logo} alt="AntiRSI" className="h-full w-full" />
-                </h1>
-              </div>
-              <Link
-                className={buttonVariants({
-                  variant: 'link'
-                })}
-                to="/config"
-              >
-                <Settings className="h-5 w-5" />
-              </Link>
-            </header>
+            <Header />
 
             {snapshot.paused && processes.length > 0 && (
               <section>
