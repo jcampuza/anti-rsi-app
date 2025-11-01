@@ -1,18 +1,18 @@
-import { type AntiRsiConfig, type AntiRsiSnapshot, type AntiRsiTimings } from '../antirsi-core'
-import { type StoreState } from './state'
+import { type AntiRsiConfig, type AntiRsiSnapshot, type AntiRsiTimings } from "../antirsi-core"
+import { type StoreState } from "./state"
 
 const cloneTimings = (timings: AntiRsiTimings): AntiRsiTimings => ({
   miniElapsed: timings.miniElapsed,
   miniTaking: timings.miniTaking,
   workElapsed: timings.workElapsed,
-  workTaking: timings.workTaking
+  workTaking: timings.workTaking,
 })
 
 export const selectConfig = (state: StoreState): AntiRsiConfig => ({
   mini: { ...state.config.mini },
   work: { ...state.config.work },
   tickIntervalMs: state.config.tickIntervalMs,
-  naturalBreakContinuationWindowSeconds: state.config.naturalBreakContinuationWindowSeconds
+  naturalBreakContinuationWindowSeconds: state.config.naturalBreakContinuationWindowSeconds,
 })
 
 export const selectTimings = (state: StoreState): AntiRsiTimings => cloneTimings(state.timings)
@@ -22,7 +22,7 @@ export const selectSnapshot = (state: StoreState): AntiRsiSnapshot => ({
   timings: selectTimings(state),
   lastIdleSeconds: state.lastIdleSeconds,
   lastUpdatedSeconds: state.lastUpdatedSeconds,
-  paused: selectIsPaused(state)
+  paused: selectIsPaused(state),
 })
 
 export const selectIsPaused = (state: StoreState): boolean =>

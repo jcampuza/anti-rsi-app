@@ -1,6 +1,6 @@
-import { useMemo } from 'react'
+import { useMemo } from "react"
 
-export type AntiRsiRendererApi = Window['api']['antirsi']
+export type AntiRsiRendererApi = Window["api"]["antirsi"]
 
 const useAntiRsiApi = (): AntiRsiRendererApi => {
   return useMemo(() => window.api.antirsi, [])

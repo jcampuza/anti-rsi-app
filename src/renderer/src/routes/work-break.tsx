@@ -1,12 +1,12 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { useOverlayMode } from '../hooks/useOverlayMode'
-import BreakOverlay from '../components/BreakOverlay'
-import { Result, useAtomValue } from '@effect-atom/atom-react'
-import { configAtom, snapshotAtom } from '@renderer/stores/antirsi'
-import useAntiRsiApi from '@renderer/hooks/useAntiRsiApi'
+import { createFileRoute } from "@tanstack/react-router"
+import { useOverlayMode } from "../hooks/useOverlayMode"
+import BreakOverlay from "../components/BreakOverlay"
+import { Result, useAtomValue } from "@effect-atom/atom-react"
+import { configAtom, snapshotAtom } from "@renderer/stores/antirsi"
+import useAntiRsiApi from "@renderer/hooks/useAntiRsiApi"
 
-export const Route = createFileRoute('/work-break')({
-  component: WorkBreakRoute
+export const Route = createFileRoute("/work-break")({
+  component: WorkBreakRoute,
 })
 
 function WorkBreakRoute() {
@@ -31,11 +31,11 @@ function WorkBreakRoute() {
           <BreakOverlay
             snapshot={snapshot}
             config={config}
-            onPostpone={() => api.dispatch({ type: 'POSTPONE_WORK_BREAK' })}
-            onSkip={() => api.dispatch({ type: 'END_WORK_BREAK' })}
+            onPostpone={() => api.dispatch({ type: "POSTPONE_WORK_BREAK" })}
+            onSkip={() => api.dispatch({ type: "END_WORK_BREAK" })}
           />
         )
-      }
-    })
+      },
+    }),
   )
 }

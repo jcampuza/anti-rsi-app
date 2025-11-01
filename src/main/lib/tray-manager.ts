@@ -1,5 +1,5 @@
-import { Tray, nativeImage, Menu } from 'electron'
-import { resolveResourcePath } from './window-utils'
+import { Tray, nativeImage, Menu } from "electron"
+import { resolveResourcePath } from "./window-utils"
 
 export type TrayManagerCallbacks = {
   showOrCreateMainWindow: () => void
@@ -15,42 +15,42 @@ export class TrayManager {
       return
     }
 
-    const trayIcon = nativeImage.createFromPath(resolveResourcePath('icon-menubarTemplate.png'))
+    const trayIcon = nativeImage.createFromPath(resolveResourcePath("icon-menubarTemplate.png"))
     if (!trayIcon.isEmpty()) {
       trayIcon.setTemplateImage(true)
     }
 
     this.tray = new Tray(trayIcon)
-    this.tray.setToolTip('Anti RSI')
-    this.tray.on('click', () => {
+    this.tray.setToolTip("Anti RSI")
+    this.tray.on("click", () => {
       callbacks.showOrCreateMainWindow()
     })
 
     const trayMenu = [
       {
-        label: 'Show Anti RSI',
+        label: "Show Anti RSI",
         click: () => {
           callbacks.showOrCreateMainWindow()
-        }
+        },
       },
-      { type: 'separator' as const },
+      { type: "separator" as const },
       {
-        label: 'Pause Monitoring',
+        label: "Pause Monitoring",
         click: () => {
           callbacks.pauseMonitoring()
-        }
+        },
       },
       {
-        label: 'Resume Monitoring',
+        label: "Resume Monitoring",
         click: () => {
           callbacks.resumeMonitoring()
-        }
+        },
       },
-      { type: 'separator' as const },
+      { type: "separator" as const },
       {
-        label: 'Quit Anti RSI',
-        role: 'quit' as const
-      }
+        label: "Quit Anti RSI",
+        role: "quit" as const,
+      },
     ]
 
     this.tray.setContextMenu(Menu.buildFromTemplate(trayMenu))

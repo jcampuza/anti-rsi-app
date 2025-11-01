@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect } from "react"
 
 export interface UseOverlayModeOptions {
   isEnabled?: boolean
@@ -14,14 +14,14 @@ export const useOverlayMode = (options?: UseOverlayModeOptions): void => {
     }
 
     if (isEnabled) {
-      body.classList.add('overlay-mode')
+      body.classList.add("overlay-mode")
     } else {
-      body.classList.remove('overlay-mode')
+      body.classList.remove("overlay-mode")
     }
 
     return () => {
       // Ensure we always clean up the overlay mode when unmounting or toggling off
-      body.classList.remove('overlay-mode')
+      body.classList.remove("overlay-mode")
     }
   }, [isEnabled])
 }

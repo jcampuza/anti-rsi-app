@@ -1,6 +1,6 @@
-import { type Action } from './actions'
-import { createInitialState, reducer } from './reducer'
-import { type StoreState } from './state'
+import { type Action } from "./actions"
+import { createInitialState, reducer } from "./reducer"
+import { type StoreState } from "./state"
 
 export interface Store {
   getState: () => StoreState
@@ -8,7 +8,7 @@ export interface Store {
   subscribe: (listener: (state: StoreState, action: Action) => void) => () => void
 }
 
-export const createStore = (initialConfig?: Partial<StoreState['config']>): Store => {
+export const createStore = (initialConfig?: Partial<StoreState["config"]>): Store => {
   let state = createInitialState(initialConfig)
   const listeners = new Set<(state: StoreState, action: Action) => void>()
 

@@ -1,23 +1,23 @@
-import { powerMonitor } from 'electron'
-import { performance } from 'node:perf_hooks'
+import { powerMonitor } from "electron"
+import { performance } from "node:perf_hooks"
 import {
   type AntiRsiConfig,
   type AntiRsiEvent,
   type AntiRsiEventListener,
   type AntiRsiSnapshot,
-  defaultConfig
-} from '../../common/antirsi-core'
-import { type Action } from '../../common/store/actions'
-import { deriveEvents } from '../../common/store/events'
+  defaultConfig,
+} from "../../common/antirsi-core"
+import { type Action } from "../../common/store/actions"
+import { deriveEvents } from "../../common/store/events"
 import {
   selectConfig,
   selectIsPaused,
   selectProcesses,
-  selectSnapshot
-} from '../../common/store/selectors'
-import { type StoreState } from '../../common/store/state'
-import { type Store } from '../../common/store/store'
-import { ConfigStore } from './config-store'
+  selectSnapshot,
+} from "../../common/store/selectors"
+import { type StoreState } from "../../common/store/state"
+import { type Store } from "../../common/store/store"
+import { ConfigStore } from "./config-store"
 
 export type AntiRsiServiceCallbacks = {
   onEvent: (event: AntiRsiEvent, snapshot: AntiRsiSnapshot) => void
@@ -25,10 +25,10 @@ export type AntiRsiServiceCallbacks = {
   onProcessesChanged?: (processes: string[]) => void
 }
 
-const breakConfigsEqual = (a: AntiRsiConfig['mini'], b: AntiRsiConfig['mini']): boolean =>
+const breakConfigsEqual = (a: AntiRsiConfig["mini"], b: AntiRsiConfig["mini"]): boolean =>
   a.intervalSeconds === b.intervalSeconds && a.durationSeconds === b.durationSeconds
 
-const workConfigsEqual = (a: AntiRsiConfig['work'], b: AntiRsiConfig['work']): boolean =>
+const workConfigsEqual = (a: AntiRsiConfig["work"], b: AntiRsiConfig["work"]): boolean =>
   a.intervalSeconds === b.intervalSeconds &&
   a.durationSeconds === b.durationSeconds &&
   a.postponeSeconds === b.postponeSeconds
@@ -68,7 +68,7 @@ export class AntiRsiService {
     const initialConfig = selectConfig(previousState)
     this.callbacks.onConfigChanged?.(initialConfig)
     const initialSnapshot = selectSnapshot(previousState)
-    this.emit(initialSnapshot, { type: 'status-update' })
+    this.emit(initialSnapshot, { type: "status-update" })
   }
 
   start(): void {
@@ -100,12 +100,12 @@ export class AntiRsiService {
   }
 
   setProcesses(processes: string[]): void {
-    this.dispatch({ type: 'SET_PROCESSES', processes })
+    this.dispatch({ type: "SET_PROCESSES", processes })
   }
 
   async setConfig(config: Partial<AntiRsiConfig>): Promise<void> {
     const before = selectConfig(this.store.getState())
-    this.dispatch({ type: 'SET_CONFIG', config })
+    this.dispatch({ type: "SET_CONFIG", config })
     const after = selectConfig(this.store.getState())
 
     if (!configsEqual(before, after)) {
@@ -116,7 +116,7 @@ export class AntiRsiService {
   async resetConfigToDefaults(): Promise<void> {
     const defaults = defaultConfig()
     const before = selectConfig(this.store.getState())
-    this.dispatch({ type: 'RESET_CONFIG' })
+    this.dispatch({ type: "RESET_CONFIG" })
     const after = selectConfig(this.store.getState())
     if (!configsEqual(before, after)) {
       await this.configStore.save(defaults)
@@ -127,50 +127,50 @@ export class AntiRsiService {
     if (selectIsPaused(this.store.getState())) {
       return
     }
-    this.dispatch({ type: 'START_WORK_BREAK', naturalContinuation: false })
+    this.dispatch({ type: "START_WORK_BREAK", naturalContinuation: false })
   }
 
   triggerMicroPause(): void {
     if (selectIsPaused(this.store.getState())) {
       return
     }
-    this.dispatch({ type: 'START_MINI_BREAK' })
+    this.dispatch({ type: "START_MINI_BREAK" })
   }
 
   postponeWorkBreak(): void {
     if (selectIsPaused(this.store.getState())) {
       return
     }
-    this.dispatch({ type: 'POSTPONE_WORK_BREAK' })
+    this.dispatch({ type: "POSTPONE_WORK_BREAK" })
   }
 
   skipWorkBreak(): void {
     if (selectIsPaused(this.store.getState())) {
       return
     }
-    this.dispatch({ type: 'END_WORK_BREAK' })
+    this.dispatch({ type: "END_WORK_BREAK" })
   }
 
   skipMicroBreak(): void {
     if (selectIsPaused(this.store.getState())) {
       return
     }
-    this.dispatch({ type: 'END_MINI_BREAK' })
+    this.dispatch({ type: "END_MINI_BREAK" })
   }
 
   pause(): void {
-    this.dispatch({ type: 'SET_USER_PAUSED', value: true })
+    this.dispatch({ type: "SET_USER_PAUSED", value: true })
     this.syncTimerWithPause(true)
   }
 
   resume(): void {
-    this.dispatch({ type: 'SET_USER_PAUSED', value: false })
+    this.dispatch({ type: "SET_USER_PAUSED", value: false })
     this.syncTimerWithPause(selectIsPaused(this.store.getState()))
   }
 
   resetTimings(): void {
-    this.dispatch({ type: 'SET_USER_PAUSED', value: false })
-    this.dispatch({ type: 'RESET_TIMINGS' })
+    this.dispatch({ type: "SET_USER_PAUSED", value: false })
+    this.dispatch({ type: "RESET_TIMINGS" })
     this.restartTimer()
   }
 
@@ -179,18 +179,18 @@ export class AntiRsiService {
   }
 
   addInhibitor(sourceId: string): void {
-    this.dispatch({ type: 'ADD_INHIBITOR', id: sourceId })
+    this.dispatch({ type: "ADD_INHIBITOR", id: sourceId })
     this.syncTimerWithPause(selectIsPaused(this.store.getState()))
   }
 
   removeInhibitor(sourceId: string): void {
-    this.dispatch({ type: 'REMOVE_INHIBITOR', id: sourceId })
+    this.dispatch({ type: "REMOVE_INHIBITOR", id: sourceId })
     this.syncTimerWithPause(selectIsPaused(this.store.getState()))
   }
 
   subscribe(listener: AntiRsiEventListener): () => void {
     this.listeners.add(listener)
-    listener({ type: 'status-update' }, this.getSnapshot())
+    listener({ type: "status-update" }, this.getSnapshot())
     return () => {
       this.listeners.delete(listener)
     }
@@ -203,7 +203,7 @@ export class AntiRsiService {
   private handleStateTransition(
     prevState: StoreState,
     nextState: StoreState,
-    action: Action
+    action: Action,
   ): void {
     const prevPaused = selectIsPaused(prevState)
     const nextPaused = selectIsPaused(nextState)
@@ -288,6 +288,6 @@ export class AntiRsiService {
     const dtSeconds = Math.max(0, (now - lastTimestamp) / 1000)
     this.lastTickTimestamp = now
     const idleSeconds = powerMonitor.getSystemIdleTime()
-    this.dispatch({ type: 'TICK', idleSeconds, dtSeconds })
+    this.dispatch({ type: "TICK", idleSeconds, dtSeconds })
   }
 }

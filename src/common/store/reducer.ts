@@ -1,4 +1,4 @@
-import { defaultConfig, type AntiRsiConfig, type AntiRsiTimings } from '../antirsi-core'
+import { defaultConfig, type AntiRsiConfig, type AntiRsiTimings } from "../antirsi-core"
 import {
   type Action,
   type AddInhibitorAction,
@@ -7,9 +7,9 @@ import {
   type SetProcessesAction,
   type SetUserPausedAction,
   type StartWorkBreakAction,
-  type TickAction
-} from './actions'
-import { type StoreState } from './state'
+  type TickAction,
+} from "./actions"
+import { type StoreState } from "./state"
 
 const clamp = (value: number, min: number, max: number): number => {
   if (value < min) return min
@@ -23,29 +23,29 @@ const createTimings = (): AntiRsiTimings => ({
   miniElapsed: 0,
   miniTaking: 0,
   workElapsed: 0,
-  workTaking: 0
+  workTaking: 0,
 })
 
 const applyConfigPatch = (
   current: AntiRsiConfig,
-  patch: Partial<AntiRsiConfig>
+  patch: Partial<AntiRsiConfig>,
 ): AntiRsiConfig => ({
   mini: { ...current.mini, ...(patch.mini ?? {}) },
   work: { ...current.work, ...(patch.work ?? {}) },
   tickIntervalMs: patch.tickIntervalMs ?? current.tickIntervalMs,
   naturalBreakContinuationWindowSeconds:
-    patch.naturalBreakContinuationWindowSeconds ?? current.naturalBreakContinuationWindowSeconds
+    patch.naturalBreakContinuationWindowSeconds ?? current.naturalBreakContinuationWindowSeconds,
 })
 
 const resetStateWithConfig = (state: StoreState, config: AntiRsiConfig): StoreState => ({
-  status: 'normal',
+  status: "normal",
   timings: createTimings(),
   lastIdleSeconds: 0,
   lastUpdatedSeconds: 0,
   config,
   userPaused: state.userPaused,
   inhibitors: new Set(state.inhibitors),
-  processes: state.processes ? [...state.processes] : []
+  processes: state.processes ? [...state.processes] : [],
 })
 
 const addInhibitor = (state: StoreState, action: AddInhibitorAction): StoreState => {
@@ -89,18 +89,18 @@ const enterMiniBreak = (state: StoreState): StoreState => {
   const timings = {
     ...state.timings,
     miniElapsed: state.config.mini.intervalSeconds,
-    miniTaking: 0
+    miniTaking: 0,
   }
-  return { ...state, status: 'in-mini', timings }
+  return { ...state, status: "in-mini", timings }
 }
 
 const leaveMiniBreak = (state: StoreState): StoreState => {
   const timings = {
     ...state.timings,
     miniElapsed: 0,
-    miniTaking: state.config.mini.durationSeconds
+    miniTaking: state.config.mini.durationSeconds,
   }
-  return { ...state, status: 'normal', timings }
+  return { ...state, status: "normal", timings }
 }
 
 const enterWorkBreak = (state: StoreState, naturalContinuation: boolean): StoreState => {
@@ -109,9 +109,9 @@ const enterWorkBreak = (state: StoreState, naturalContinuation: boolean): StoreS
     workElapsed: state.config.work.intervalSeconds,
     workTaking: naturalContinuation ? state.timings.workTaking : 0,
     miniElapsed: 0,
-    miniTaking: state.config.mini.durationSeconds
+    miniTaking: state.config.mini.durationSeconds,
   }
-  return { ...state, status: 'in-work', timings }
+  return { ...state, status: "in-work", timings }
 }
 
 const leaveWorkBreak = (state: StoreState): StoreState => {
@@ -120,33 +120,33 @@ const leaveWorkBreak = (state: StoreState): StoreState => {
     miniElapsed: 0,
     miniTaking: state.config.mini.durationSeconds,
     workElapsed: 0,
-    workTaking: state.config.work.durationSeconds
+    workTaking: state.config.work.durationSeconds,
   }
-  return { ...state, status: 'normal', timings }
+  return { ...state, status: "normal", timings }
 }
 
 const resetTimings = (state: StoreState): StoreState => ({
   ...state,
-  status: 'normal',
+  status: "normal",
   timings: createTimings(),
   lastIdleSeconds: 0,
-  lastUpdatedSeconds: 0
+  lastUpdatedSeconds: 0,
 })
 
 const postponeWorkBreak = (state: StoreState): StoreState => {
   const workElapsed = clamp(
     state.config.work.intervalSeconds - state.config.work.postponeSeconds,
     0,
-    state.config.work.intervalSeconds
+    state.config.work.intervalSeconds,
   )
   const timings = {
     ...state.timings,
     miniElapsed: 0,
     miniTaking: 0,
     workElapsed,
-    workTaking: 0
+    workTaking: 0,
   }
-  return { ...state, status: 'normal', timings }
+  return { ...state, status: "normal", timings }
 }
 
 const shouldResetMiniFromNaturalBreak = (idleSeconds: number, config: AntiRsiConfig): boolean =>
@@ -154,11 +154,11 @@ const shouldResetMiniFromNaturalBreak = (idleSeconds: number, config: AntiRsiCon
 
 const resetMiniTimersFromNaturalBreak = (
   timings: AntiRsiTimings,
-  config: AntiRsiConfig
+  config: AntiRsiConfig,
 ): AntiRsiTimings => ({
   ...timings,
   miniElapsed: 0,
-  miniTaking: config.mini.durationSeconds
+  miniTaking: config.mini.durationSeconds,
 })
 
 const tick = (state: StoreState, action: TickAction): StoreState => {
@@ -176,10 +176,10 @@ const tick = (state: StoreState, action: TickAction): StoreState => {
     ...state,
     timings,
     lastIdleSeconds: action.idleSeconds,
-    lastUpdatedSeconds: state.lastUpdatedSeconds + delta
+    lastUpdatedSeconds: state.lastUpdatedSeconds + delta,
   }
 
-  if (state.status === 'normal') {
+  if (state.status === "normal") {
     const idleThreshold = state.config.mini.durationSeconds * 0.3
     if (action.idleSeconds <= idleThreshold) {
       timings.miniElapsed = clampTo(timings.miniElapsed + delta, state.config.mini.intervalSeconds)
@@ -207,7 +207,7 @@ const tick = (state: StoreState, action: TickAction): StoreState => {
     return { ...next, timings: next.timings }
   }
 
-  if (state.status === 'in-mini') {
+  if (state.status === "in-mini") {
     timings.workElapsed = clampTo(timings.workElapsed + delta, state.config.work.intervalSeconds)
     if (action.idleSeconds < 1) {
       timings.miniTaking = 0
@@ -226,7 +226,7 @@ const tick = (state: StoreState, action: TickAction): StoreState => {
     return { ...next, timings }
   }
 
-  if (state.status === 'in-work') {
+  if (state.status === "in-work") {
     if (action.idleSeconds >= 4) {
       timings.workTaking = clampTo(timings.workTaking + delta, state.config.work.durationSeconds)
     }
@@ -244,48 +244,48 @@ const tick = (state: StoreState, action: TickAction): StoreState => {
 export const createInitialState = (initialConfig?: Partial<AntiRsiConfig>): StoreState => {
   const config = initialConfig ? applyConfigPatch(defaultConfig(), initialConfig) : defaultConfig()
   return {
-    status: 'normal',
+    status: "normal",
     timings: createTimings(),
     lastIdleSeconds: 0,
     lastUpdatedSeconds: 0,
     config,
     userPaused: false,
     inhibitors: new Set<string>(),
-    processes: []
+    processes: [],
   }
 }
 
 export const reducer = (state: StoreState, action: Action): StoreState => {
   switch (action.type) {
-    case 'TICK':
+    case "TICK":
       return tick(state, action as TickAction)
-    case 'SET_CONFIG': {
+    case "SET_CONFIG": {
       const config = applyConfigPatch(state.config, (action as SetConfigAction).config)
       return resetStateWithConfig(state, config)
     }
-    case 'RESET_CONFIG': {
+    case "RESET_CONFIG": {
       const config = defaultConfig()
       return resetStateWithConfig(state, config)
     }
-    case 'RESET_TIMINGS':
+    case "RESET_TIMINGS":
       return resetTimings(state)
-    case 'START_MINI_BREAK':
+    case "START_MINI_BREAK":
       return enterMiniBreak(state)
-    case 'END_MINI_BREAK':
+    case "END_MINI_BREAK":
       return leaveMiniBreak(state)
-    case 'START_WORK_BREAK':
+    case "START_WORK_BREAK":
       return enterWorkBreak(state, (action as StartWorkBreakAction).naturalContinuation)
-    case 'END_WORK_BREAK':
+    case "END_WORK_BREAK":
       return leaveWorkBreak(state)
-    case 'POSTPONE_WORK_BREAK':
+    case "POSTPONE_WORK_BREAK":
       return postponeWorkBreak(state)
-    case 'SET_USER_PAUSED':
+    case "SET_USER_PAUSED":
       return setUserPaused(state, action as SetUserPausedAction)
-    case 'ADD_INHIBITOR':
+    case "ADD_INHIBITOR":
       return addInhibitor(state, action as AddInhibitorAction)
-    case 'REMOVE_INHIBITOR':
+    case "REMOVE_INHIBITOR":
       return removeInhibitor(state, action as RemoveInhibitorAction)
-    case 'SET_PROCESSES':
+    case "SET_PROCESSES":
       return setProcesses(state, action as SetProcessesAction)
     default:
       return state

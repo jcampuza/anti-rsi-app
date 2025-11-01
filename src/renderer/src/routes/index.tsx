@@ -1,17 +1,17 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
-import { Settings } from 'lucide-react'
-import { Versions } from '../components/Versions'
-import BreakStatusCard from '../components/BreakStatusCard'
-import { HeaderActions } from '../components/HeaderActions'
-import logo from '../../../../resources/icon.png'
-import { buttonVariants } from '@renderer/components/ui/Button'
-import { Result, useAtomValue } from '@effect-atom/atom-react'
-import { processAtom } from '@renderer/stores/antirsi'
-import { configAtom, snapshotAtom } from '@renderer/stores/antirsi'
-import useAntiRsiApi from '@renderer/hooks/useAntiRsiApi'
+import { createFileRoute, Link } from "@tanstack/react-router"
+import { Settings } from "lucide-react"
+import { Versions } from "../components/Versions"
+import BreakStatusCard from "../components/BreakStatusCard"
+import { HeaderActions } from "../components/HeaderActions"
+import logo from "../../../../resources/icon.png"
+import { buttonVariants } from "@renderer/components/ui/Button"
+import { Result, useAtomValue } from "@effect-atom/atom-react"
+import { processAtom } from "@renderer/stores/antirsi"
+import { configAtom, snapshotAtom } from "@renderer/stores/antirsi"
+import useAntiRsiApi from "@renderer/hooks/useAntiRsiApi"
 
-export const Route = createFileRoute('/')({
-  component: App
+export const Route = createFileRoute("/")({
+  component: App,
 })
 
 function Header() {
@@ -25,7 +25,7 @@ function Header() {
 
       <Link
         className={buttonVariants({
-          variant: 'link'
+          variant: "link",
         })}
         to="/config"
       >
@@ -62,7 +62,7 @@ function App() {
             {snapshot.paused && processes.length > 0 && (
               <section>
                 <p className="text-sm font-semibold text-accent">
-                  Timers paused because of active processes: {processes.join(', ')}
+                  Timers paused because of active processes: {processes.join(", ")}
                 </p>
               </section>
             )}
@@ -75,7 +75,7 @@ function App() {
 
             <section
               className="grid gap-5 app-region-no-drag"
-              style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}
+              style={{ gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}
             >
               <BreakStatusCard
                 config={config}
@@ -98,7 +98,7 @@ function App() {
             {import.meta.env.DEV ? <Versions /> : null}
           </div>
         )
-      }
-    })
+      },
+    }),
   )
 }

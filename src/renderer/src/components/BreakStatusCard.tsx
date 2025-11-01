@@ -1,5 +1,5 @@
-import type { AntiRsiConfig, AntiRsiSnapshot, BreakType } from 'src/common/antirsi-core'
-import formatSeconds from '../utils/time'
+import type { AntiRsiConfig, AntiRsiSnapshot, BreakType } from "src/common/antirsi-core"
+import formatSeconds from "../utils/time"
 
 interface BreakStatusCardProps {
   snapshot: AntiRsiSnapshot
@@ -12,24 +12,24 @@ const BreakStatusCard = ({
   snapshot,
   config,
   breakType,
-  pendingSeconds
+  pendingSeconds,
 }: BreakStatusCardProps): React.JSX.Element => {
   const breakConfig = config[breakType]
   const isActive = snapshot.state === `in-${breakType}`
-  const elapsed = breakType === 'mini' ? snapshot.timings.miniElapsed : snapshot.timings.workElapsed
+  const elapsed = breakType === "mini" ? snapshot.timings.miniElapsed : snapshot.timings.workElapsed
   const duration = breakConfig.durationSeconds
-  const label = breakType === 'mini' ? 'Micro Pause' : 'Work Break'
+  const label = breakType === "mini" ? "Micro Pause" : "Work Break"
   const intervalMax =
-    breakType === 'mini' ? config.mini.intervalSeconds : config.work.intervalSeconds
+    breakType === "mini" ? config.mini.intervalSeconds : config.work.intervalSeconds
 
   return (
     <article className="rounded-xl border border-border bg-card p-4 text-foreground shadow">
       <header className="flex items-baseline justify-between">
         <h2 className="text-lg font-semibold">{label}</h2>
         <span
-          className={`text-xs uppercase tracking-[0.08em] ${breakType === 'work' ? 'text-accent' : 'text-muted-foreground'}`}
+          className={`text-xs uppercase tracking-[0.08em] ${breakType === "work" ? "text-accent" : "text-muted-foreground"}`}
         >
-          {isActive ? 'Active' : 'Idle'}
+          {isActive ? "Active" : "Idle"}
         </span>
       </header>
       <div className="mt-4 flex items-center justify-between">

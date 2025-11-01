@@ -1,4 +1,4 @@
-import { type AntiRsiConfig, type AntiRsiState, type AntiRsiTimings } from '../antirsi-core'
+import { type AntiRsiConfig, type AntiRsiState, type AntiRsiTimings } from "../antirsi-core"
 
 export interface StoreState {
   status: AntiRsiState

@@ -1,7 +1,7 @@
-import { EventEmitter } from 'node:events'
-import { exec } from 'node:child_process'
+import { EventEmitter } from "node:events"
+import { exec } from "node:child_process"
 
-export const WATCHED_PROCESSES = ['zoom.us']
+export const WATCHED_PROCESSES = ["zoom.us"]
 
 export type ProcessesListener = (processes: string[]) => void
 
@@ -29,8 +29,8 @@ export class ProcessService {
   }
 
   subscribe(listener: ProcessesListener): () => void {
-    this.emitter.on('change', listener)
-    return () => this.emitter.off('change', listener)
+    this.emitter.on("change", listener)
+    return () => this.emitter.off("change", listener)
   }
 
   private getRunningProcesses(): Promise<Set<string>> {
@@ -69,7 +69,7 @@ export class ProcessService {
       clearTimeout(this.debounceTimer)
     }
     this.debounceTimer = setTimeout(() => {
-      this.emitter.emit('change', this.getProcessesList())
+      this.emitter.emit("change", this.getProcessesList())
     }, this.debounceMs)
   }
 

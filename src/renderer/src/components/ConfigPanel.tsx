@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
-import type { AntiRsiRendererApi } from '../hooks/useAntiRsiApi'
-import type { BreakConfig, AntiRsiConfig } from 'src/common/antirsi-core'
-import { Button } from '@renderer/components/ui/Button'
+import { useState, useEffect } from "react"
+import type { AntiRsiRendererApi } from "../hooks/useAntiRsiApi"
+import type { BreakConfig, AntiRsiConfig } from "src/common/antirsi-core"
+import { Button } from "@renderer/components/ui/Button"
 
 interface ConfigPanelProps {
   config: AntiRsiConfig
@@ -14,7 +14,7 @@ const ConfigPanel = ({ config, api, onReset }: ConfigPanelProps): React.JSX.Elem
   const [workConfig, setWorkConfig] = useState({
     intervalSeconds: config.work.intervalSeconds,
     durationSeconds: config.work.durationSeconds,
-    postponeSeconds: config.work.postponeSeconds
+    postponeSeconds: config.work.postponeSeconds,
   })
 
   useEffect(() => {
@@ -22,20 +22,20 @@ const ConfigPanel = ({ config, api, onReset }: ConfigPanelProps): React.JSX.Elem
     setWorkConfig({
       intervalSeconds: config.work.intervalSeconds,
       durationSeconds: config.work.durationSeconds,
-      postponeSeconds: config.work.postponeSeconds
+      postponeSeconds: config.work.postponeSeconds,
     })
   }, [config])
 
   const handleApply = (): void => {
     api
       .dispatch({
-        type: 'SET_CONFIG',
+        type: "SET_CONFIG",
         config: {
           mini: miniConfig,
-          work: workConfig
-        }
+          work: workConfig,
+        },
       })
-      .catch((error) => console.error('[AntiRSI] Failed to update config', error))
+      .catch((error) => console.error("[AntiRSI] Failed to update config", error))
   }
 
   return (
@@ -52,7 +52,7 @@ const ConfigPanel = ({ config, api, onReset }: ConfigPanelProps): React.JSX.Elem
             onChange={(event) =>
               setMiniConfig({
                 ...miniConfig,
-                intervalSeconds: Number.parseInt(event.target.value, 10)
+                intervalSeconds: Number.parseInt(event.target.value, 10),
               })
             }
           />
@@ -67,7 +67,7 @@ const ConfigPanel = ({ config, api, onReset }: ConfigPanelProps): React.JSX.Elem
             onChange={(event) =>
               setMiniConfig({
                 ...miniConfig,
-                durationSeconds: Number.parseInt(event.target.value, 10)
+                durationSeconds: Number.parseInt(event.target.value, 10),
               })
             }
           />
@@ -82,7 +82,7 @@ const ConfigPanel = ({ config, api, onReset }: ConfigPanelProps): React.JSX.Elem
             onChange={(event) =>
               setWorkConfig({
                 ...workConfig,
-                intervalSeconds: Number.parseInt(event.target.value, 10)
+                intervalSeconds: Number.parseInt(event.target.value, 10),
               })
             }
           />
@@ -97,7 +97,7 @@ const ConfigPanel = ({ config, api, onReset }: ConfigPanelProps): React.JSX.Elem
             onChange={(event) =>
               setWorkConfig({
                 ...workConfig,
-                durationSeconds: Number.parseInt(event.target.value, 10)
+                durationSeconds: Number.parseInt(event.target.value, 10),
               })
             }
           />
@@ -112,7 +112,7 @@ const ConfigPanel = ({ config, api, onReset }: ConfigPanelProps): React.JSX.Elem
             onChange={(event) =>
               setWorkConfig({
                 ...workConfig,
-                postponeSeconds: Number.parseInt(event.target.value, 10)
+                postponeSeconds: Number.parseInt(event.target.value, 10),
               })
             }
           />

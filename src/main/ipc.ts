@@ -1,9 +1,9 @@
-import { ipcMain } from 'electron'
-import { IPC_ACTIONS, IPC_EVENTS } from '../common/actions'
-import { type Store } from '../common/store/store'
-import { Effect } from 'effect'
-import { type Action } from '../common/store/actions'
-import { selectConfig, selectProcesses, selectSnapshot } from '../common/store/selectors'
+import { ipcMain } from "electron"
+import { IPC_ACTIONS, IPC_EVENTS } from "../common/actions"
+import { type Store } from "../common/store/store"
+import { Effect } from "effect"
+import { type Action } from "../common/store/actions"
+import { selectConfig, selectProcesses, selectSnapshot } from "../common/store/selectors"
 
 export const wireIpcHandlers = (store: Store): Effect.Effect<void> => {
   return Effect.sync(() => {
@@ -19,10 +19,10 @@ export const wireIpcHandlers = (store: Store): Effect.Effect<void> => {
       const snapshot = selectSnapshot(store.getState())
       const processes = selectProcesses(store.getState())
       event.sender.send(IPC_EVENTS.EVENT, {
-        type: 'init',
+        type: "init",
         config,
         snapshot,
-        processes
+        processes,
       })
     })
 

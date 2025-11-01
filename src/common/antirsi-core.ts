@@ -1,6 +1,6 @@
-export type BreakType = 'mini' | 'work'
+export type BreakType = "mini" | "work"
 
-export type AntiRsiState = 'normal' | 'in-mini' | 'in-work'
+export type AntiRsiState = "normal" | "in-mini" | "in-work"
 
 export interface BreakConfig {
   intervalSeconds: number
@@ -34,13 +34,13 @@ export interface AntiRsiSnapshot {
 }
 
 export type AntiRsiEvent =
-  | { type: 'mini-break-start' }
-  | { type: 'work-break-start'; naturalContinuation: boolean }
-  | { type: 'break-update'; breakType: BreakType }
-  | { type: 'break-end'; breakType: BreakType }
-  | { type: 'status-update' }
-  | { type: 'paused' }
-  | { type: 'resumed' }
+  | { type: "mini-break-start" }
+  | { type: "work-break-start"; naturalContinuation: boolean }
+  | { type: "break-update"; breakType: BreakType }
+  | { type: "break-end"; breakType: BreakType }
+  | { type: "status-update" }
+  | { type: "paused" }
+  | { type: "resumed" }
 
 export type AntiRsiEventListener = (event: AntiRsiEvent, snapshot: AntiRsiSnapshot) => void
 
@@ -48,15 +48,15 @@ const mergeConfig = (override?: Partial<AntiRsiConfig>): AntiRsiConfig => {
   const base: AntiRsiConfig = {
     mini: {
       intervalSeconds: 4 * 60,
-      durationSeconds: 13
+      durationSeconds: 13,
     },
     work: {
       intervalSeconds: 50 * 60,
       durationSeconds: 8 * 60,
-      postponeSeconds: 10 * 60
+      postponeSeconds: 10 * 60,
     },
     tickIntervalMs: 500,
-    naturalBreakContinuationWindowSeconds: 30
+    naturalBreakContinuationWindowSeconds: 30,
   }
 
   if (!override) {
@@ -68,7 +68,7 @@ const mergeConfig = (override?: Partial<AntiRsiConfig>): AntiRsiConfig => {
     work: { ...base.work, ...(override.work ?? {}) },
     tickIntervalMs: override.tickIntervalMs ?? base.tickIntervalMs,
     naturalBreakContinuationWindowSeconds:
-      override.naturalBreakContinuationWindowSeconds ?? base.naturalBreakContinuationWindowSeconds
+      override.naturalBreakContinuationWindowSeconds ?? base.naturalBreakContinuationWindowSeconds,
   }
 }
 

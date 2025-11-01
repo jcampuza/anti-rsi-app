@@ -1,7 +1,7 @@
-import { BrowserWindow, screen } from 'electron'
-import { type BreakType } from '../../common/antirsi-core'
-import { IPC_EVENTS } from '../../common/actions'
-import { loadRenderer, getPreloadPath } from './window-utils'
+import { BrowserWindow, screen } from "electron"
+import { type BreakType } from "../../common/antirsi-core"
+import { IPC_EVENTS } from "../../common/actions"
+import { loadRenderer, getPreloadPath } from "./window-utils"
 
 export class OverlayManager {
   private overlayWindows: BrowserWindow[] = []
@@ -10,7 +10,7 @@ export class OverlayManager {
     const displays = screen.getAllDisplays()
     if (this.overlayWindows.length === displays.length) {
       this.overlayWindows.forEach((window) => {
-        const route = breakType === 'mini' ? '/micro-break' : '/work-break'
+        const route = breakType === "mini" ? "/micro-break" : "/work-break"
         loadRenderer(window, { overlay: true, route })
         window.webContents.send(IPC_EVENTS.OVERLAY_BREAK, breakType)
         window.showInactive()
@@ -39,22 +39,22 @@ export class OverlayManager {
           preload: getPreloadPath(),
           contextIsolation: true,
           nodeIntegration: false,
-          sandbox: true
-        }
+          sandbox: true,
+        },
       })
 
-      overlayWindow.setAlwaysOnTop(true, 'screen-saver')
+      overlayWindow.setAlwaysOnTop(true, "screen-saver")
       overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
 
-      const route = breakType === 'mini' ? '/micro-break' : '/work-break'
+      const route = breakType === "mini" ? "/micro-break" : "/work-break"
       loadRenderer(overlayWindow, { overlay: true, route })
-      overlayWindow.on('close', (event) => {
+      overlayWindow.on("close", (event) => {
         if (this.overlayWindows.includes(overlayWindow)) {
           event.preventDefault()
           overlayWindow.hide()
         }
       })
-      overlayWindow.once('ready-to-show', () => {
+      overlayWindow.once("ready-to-show", () => {
         overlayWindow.showInactive()
         overlayWindow.focus()
         overlayWindow.webContents.send(IPC_EVENTS.OVERLAY_BREAK, breakType)
@@ -68,7 +68,7 @@ export class OverlayManager {
       return
     }
     this.overlayWindows.forEach((window) => {
-      window.removeAllListeners('close')
+      window.removeAllListeners("close")
       window.close()
     })
     this.overlayWindows = []

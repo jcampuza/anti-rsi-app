@@ -1,13 +1,13 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
-import { ArrowLeft } from 'lucide-react'
-import ConfigPanel from '../components/ConfigPanel'
-import { buttonVariants } from '@renderer/components/ui/Button'
-import { Result, useAtomValue } from '@effect-atom/atom-react'
-import { configAtom } from '@renderer/stores/antirsi'
-import useAntiRsiApi from '@renderer/hooks/useAntiRsiApi'
+import { createFileRoute, Link } from "@tanstack/react-router"
+import { ArrowLeft } from "lucide-react"
+import ConfigPanel from "../components/ConfigPanel"
+import { buttonVariants } from "@renderer/components/ui/Button"
+import { Result, useAtomValue } from "@effect-atom/atom-react"
+import { configAtom } from "@renderer/stores/antirsi"
+import useAntiRsiApi from "@renderer/hooks/useAntiRsiApi"
 
-export const Route = createFileRoute('/config')({
-  component: ConfigRoute
+export const Route = createFileRoute("/config")({
+  component: ConfigRoute,
 })
 
 function ConfigRoute(): React.JSX.Element {
@@ -16,8 +16,8 @@ function ConfigRoute(): React.JSX.Element {
 
   const handleReset = (): void => {
     api
-      .dispatch({ type: 'RESET_CONFIG' })
-      .catch((error) => console.error('[AntiRSI] Failed to reset config', error))
+      .dispatch({ type: "RESET_CONFIG" })
+      .catch((error) => console.error("[AntiRSI] Failed to reset config", error))
   }
 
   return Result.match(config, {
@@ -40,7 +40,7 @@ function ConfigRoute(): React.JSX.Element {
         <div className="app-region-drag flex min-h-[520px] flex-col gap-4 rounded-2xl border border-border bg-background px-7 py-8">
           <header className="app-region-no-drag">
             <div className="flex items-center gap-3 mb-4">
-              <Link to="/" className={buttonVariants({ variant: 'link' })}>
+              <Link to="/" className={buttonVariants({ variant: "link" })}>
                 <ArrowLeft className="h-5 w-5" />
               </Link>
             </div>
@@ -51,6 +51,6 @@ function ConfigRoute(): React.JSX.Element {
           <ConfigPanel config={r.value} api={api} onReset={handleReset} />
         </div>
       )
-    }
+    },
   })
 }

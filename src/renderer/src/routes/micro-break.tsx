@@ -1,12 +1,12 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { useOverlayMode } from '../hooks/useOverlayMode'
-import BreakOverlay from '../components/BreakOverlay'
-import { Result, useAtomValue } from '@effect-atom/atom-react'
-import { configAtom, snapshotAtom } from '@renderer/stores/antirsi'
-import useAntiRsiApi from '@renderer/hooks/useAntiRsiApi'
+import { createFileRoute } from "@tanstack/react-router"
+import { useOverlayMode } from "../hooks/useOverlayMode"
+import BreakOverlay from "../components/BreakOverlay"
+import { Result, useAtomValue } from "@effect-atom/atom-react"
+import { configAtom, snapshotAtom } from "@renderer/stores/antirsi"
+import useAntiRsiApi from "@renderer/hooks/useAntiRsiApi"
 
-export const Route = createFileRoute('/micro-break')({
-  component: MicroBreakRoute
+export const Route = createFileRoute("/micro-break")({
+  component: MicroBreakRoute,
 })
 
 function MicroBreakRoute(): React.JSX.Element {
@@ -30,10 +30,10 @@ function MicroBreakRoute(): React.JSX.Element {
           <BreakOverlay
             snapshot={snapshot}
             config={config}
-            onSkip={() => api.dispatch({ type: 'END_MINI_BREAK' })}
+            onSkip={() => api.dispatch({ type: "END_MINI_BREAK" })}
           />
         )
-      }
-    })
+      },
+    }),
   )
 }
