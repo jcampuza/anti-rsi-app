@@ -1,63 +1,76 @@
-import { Tray, nativeImage, Menu } from "electron"
-import { resolveResourcePath } from "./window-utils"
+import { Tray, nativeImage, Menu } from 'electron';
+import { Context, Effect } from 'effect';
+import { resolveResourcePath } from './window-utils';
 
 export type TrayManagerCallbacks = {
-  showOrCreateMainWindow: () => void
-  pauseMonitoring: () => void
-  resumeMonitoring: () => void
-}
+  showOrCreateMainWindow: () => void;
+  pauseMonitoring: () => void;
+  resumeMonitoring: () => void;
+};
 
-export class TrayManager {
-  private tray: Tray | null = null
+export class TrayManagerCallbacksTag extends Context.Tag('TrayManagerCallbacks')<
+  TrayManagerCallbacksTag,
+  TrayManagerCallbacks
+>() {}
 
-  ensureTray(callbacks: TrayManagerCallbacks): void {
-    if (this.tray) {
-      return
-    }
+export class TrayManager extends Effect.Service<TrayManager>()('TrayManager', {
+  scoped: Effect.gen(function* () {
+    const callbacks = yield* TrayManagerCallbacksTag;
 
-    const trayIcon = nativeImage.createFromPath(resolveResourcePath("icon-menubarTemplate.png"))
-    if (!trayIcon.isEmpty()) {
-      trayIcon.setTemplateImage(true)
-    }
+    const tray = yield* Effect.acquireRelease(
+      Effect.sync(() => {
+        const trayIcon = nativeImage.createFromPath(
+          resolveResourcePath('icon-menubarTemplate.png'),
+        );
+        if (!trayIcon.isEmpty()) {
+          trayIcon.setTemplateImage(true);
+        }
 
-    this.tray = new Tray(trayIcon)
-    this.tray.setToolTip("Anti RSI")
-    this.tray.on("click", () => {
-      callbacks.showOrCreateMainWindow()
-    })
+        const tray = new Tray(trayIcon);
+        tray.setToolTip('Anti RSI');
+        tray.on('click', () => {
+          callbacks.showOrCreateMainWindow();
+        });
 
-    const trayMenu = [
-      {
-        label: "Show Anti RSI",
-        click: () => {
-          callbacks.showOrCreateMainWindow()
-        },
-      },
-      { type: "separator" as const },
-      {
-        label: "Pause Monitoring",
-        click: () => {
-          callbacks.pauseMonitoring()
-        },
-      },
-      {
-        label: "Resume Monitoring",
-        click: () => {
-          callbacks.resumeMonitoring()
-        },
-      },
-      { type: "separator" as const },
-      {
-        label: "Quit Anti RSI",
-        role: "quit" as const,
-      },
-    ]
+        const trayMenu = [
+          {
+            label: 'Show Anti RSI',
+            click: () => {
+              callbacks.showOrCreateMainWindow();
+            },
+          },
+          { type: 'separator' as const },
+          {
+            label: 'Pause Monitoring',
+            click: () => {
+              callbacks.pauseMonitoring();
+            },
+          },
+          {
+            label: 'Resume Monitoring',
+            click: () => {
+              callbacks.resumeMonitoring();
+            },
+          },
+          { type: 'separator' as const },
+          {
+            label: 'Quit Anti RSI',
+            role: 'quit' as const,
+          },
+        ];
 
-    this.tray.setContextMenu(Menu.buildFromTemplate(trayMenu))
-  }
+        tray.setContextMenu(Menu.buildFromTemplate(trayMenu));
 
-  destroy(): void {
-    this.tray?.destroy()
-    this.tray = null
-  }
-}
+        return tray;
+      }),
+      (tray) =>
+        Effect.sync(() => {
+          tray.destroy();
+        }),
+    );
+
+    return {
+      tray,
+    } as const;
+  }),
+}) {}

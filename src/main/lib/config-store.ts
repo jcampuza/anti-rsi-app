@@ -1,34 +1,27 @@
-import { promises as fs } from "fs"
-import { dirname, join } from "path"
-import type { AntiRsiConfig } from "../../common/antirsi-core"
+import * as KeyValueStore from '@effect/platform/KeyValueStore';
+import { Effect } from 'effect';
+import { AntiRsiConfigSchema } from '../../common/config-schema';
 
-export class ConfigStore {
-  private readonly filePath: string
+const CONFIG_KEY = 'antirsi-config';
 
-  constructor(userDataPath: string) {
-    this.filePath = join(userDataPath, "antirsi-config.json")
-  }
+export class ConfigStore extends Effect.Service<ConfigStore>()('ConfigStore', {
+  effect: Effect.gen(function* () {
+    const kv = yield* KeyValueStore.KeyValueStore;
+    const schemaStore = kv.forSchema(AntiRsiConfigSchema);
 
-  async load(): Promise<Partial<AntiRsiConfig> | undefined> {
-    try {
-      const contents = await fs.readFile(this.filePath, "utf-8")
-      return JSON.parse(contents) as Partial<AntiRsiConfig>
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-        return undefined
-      }
-      console.error("[AntiRSI] Failed to load config:", error)
-      return undefined
-    }
-  }
+    return {
+      load: schemaStore
+        .get(CONFIG_KEY)
+        .pipe(Effect.tap(() => Effect.log('Loading config from store'))),
 
-  async save(config: AntiRsiConfig): Promise<void> {
-    await fs.mkdir(dirname(this.filePath), { recursive: true })
-
-    try {
-      await fs.writeFile(this.filePath, JSON.stringify(config, null, 2), "utf-8")
-    } catch (error) {
-      console.error("[AntiRSI] Failed to persist config:", error)
-    }
-  }
-}
+      save: (config) => {
+        return schemaStore.set(CONFIG_KEY, config).pipe(
+          Effect.tap(() => Effect.log('Saving config to store')),
+          Effect.withSpan('save-config'),
+          Effect.catchTag('ParseError', (error) => Effect.logError('Config parse error', error)),
+          Effect.catchTag('SystemError', (error) => Effect.logError('Config save error', error)),
+        );
+      },
+    } as const;
+  }),
+}) {}

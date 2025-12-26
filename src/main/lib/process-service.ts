@@ -1,104 +1,76 @@
-import { EventEmitter } from "node:events"
-import { exec } from "node:child_process"
+import { Effect, Schedule, Duration, Stream, SubscriptionRef } from 'effect';
+import * as Command from '@effect/platform/Command';
+import * as NodeCommandExecutor from '@effect/platform-node/NodeCommandExecutor';
 
-export const WATCHED_PROCESSES = ["zoom.us"]
+export const WATCHED_PROCESSES = ['zoom.us'];
+const DEFAULT_INTERVAL_MS = 2500;
+const DEFAULT_DEBOUNCE_MS = 400;
 
-export type ProcessesListener = (processes: string[]) => void
+const watched = WATCHED_PROCESSES;
+const intervalMs = DEFAULT_INTERVAL_MS;
+const debounceMs = DEFAULT_DEBOUNCE_MS;
 
-export class ProcessService {
-  private processes: Set<string> = new Set<string>()
-  private emitter = new EventEmitter()
-  private intervalId: NodeJS.Timeout | undefined
-  private watched: string[]
-  private intervalMs: number
-  private debounceMs: number
-  private debounceTimer: NodeJS.Timeout | undefined
+export type ProcessesListener = (processes: string[]) => void;
 
-  constructor(options: { watched?: string[]; intervalMs?: number; debounceMs?: number } = {}) {
-    this.watched = options.watched ?? WATCHED_PROCESSES
-    this.intervalMs = options.intervalMs ?? 2500
-    this.debounceMs = options.debounceMs ?? 400
+const areSetsEqual = (a: Set<string>, b: Set<string>): boolean => {
+  if (a.size !== b.size) return false;
+  for (const value of a) {
+    if (!b.has(value)) return false;
   }
+  return true;
+};
 
-  getProcesses(): Set<string> {
-    return new Set(this.processes)
-  }
+export class ProcessService extends Effect.Service<ProcessService>()('ProcessService', {
+  scoped: Effect.gen(function* () {
+    // Ref for reactive state management
+    const processesRef = yield* SubscriptionRef.make<Set<string>>(new Set());
 
-  getProcessesList(): string[] {
-    return Array.from(this.processes)
-  }
-
-  subscribe(listener: ProcessesListener): () => void {
-    this.emitter.on("change", listener)
-    return () => this.emitter.off("change", listener)
-  }
-
-  private getRunningProcesses(): Promise<Set<string>> {
-    const checks = this.watched.map((name) => this.isRunningExact(name))
-    return Promise.all(checks).then((results) => {
-      const set = new Set<string>()
-      results.forEach((running, idx) => {
-        if (running) set.add(this.watched[idx])
-      })
-      return set
-    })
-  }
-
-  private isRunningExact(name: string): Promise<boolean> {
-    return new Promise<boolean>((resolve) => {
-      // Quote the name to avoid shell interpretation; -x matches the exact process name
-      exec(`pgrep -x ${this.escapeArg(name)}`, (error, stdout) => {
-        if (error) {
-          resolve(false)
-          return
+    // Poll processes
+    const pollOnce = Effect.gen(function* () {
+      const running = new Set<string>();
+      for (const name of watched) {
+        const command = Command.make('pgrep', '-x', name);
+        const lines = yield* Command.lines(command);
+        if (lines.length > 0) {
+          running.add(name);
         }
-        resolve(stdout.trim().length > 0)
-      })
-    })
-  }
-
-  private escapeArg(value: string): string {
-    return `'${value.replace(/'/g, "'\\''")}'`
-  }
-
-  private setProcesses(newProcesses: Set<string>): void {
-    if (this.areSetsEqual(this.processes, newProcesses)) return
-    this.processes = new Set(newProcesses)
-
-    if (this.debounceTimer) {
-      clearTimeout(this.debounceTimer)
-    }
-    this.debounceTimer = setTimeout(() => {
-      this.emitter.emit("change", this.getProcessesList())
-    }, this.debounceMs)
-  }
-
-  private areSetsEqual(a: Set<string>, b: Set<string>): boolean {
-    if (a.size !== b.size) return false
-    for (const value of a) {
-      if (!b.has(value)) return false
-    }
-    return true
-  }
-
-  start(options: { onTick?: (processes: Set<string>) => void } = {}): void {
-    this.intervalId = setInterval(async () => {
-      try {
-        const processes = await this.getRunningProcesses()
-        this.setProcesses(processes)
-        options.onTick?.(processes)
-      } catch (e) {
-        console.error(e)
       }
-    }, this.intervalMs)
-  }
+      return running;
+    });
 
-  stop(): void {
-    if (this.intervalId) {
-      clearInterval(this.intervalId)
-    }
-    if (this.debounceTimer) {
-      clearTimeout(this.debounceTimer)
-    }
-  }
-}
+    // Create a stream that polls on a schedule, filters distinct values, debounces, and updates the ref
+    const pollingStream = Stream.repeatEffectWithSchedule(
+      pollOnce,
+      Schedule.spaced(Duration.millis(intervalMs)),
+    ).pipe(
+      // Only emit when the set actually changes (using custom equality)
+      Stream.changesWith((prev, next) => areSetsEqual(prev, next)),
+      // Debounce rapid changes
+      Stream.debounce(Duration.millis(debounceMs)),
+      // Update the SubscriptionRef with each new value
+      Stream.runForEach((current) =>
+        Effect.gen(function* () {
+          yield* Effect.log('ProcessService: processes changed', {
+            processes: Array.from(current),
+          });
+          yield* SubscriptionRef.set(processesRef, current);
+        }),
+      ),
+      // Catch and log any errors without crashing
+      Effect.catchAll((err) => Effect.logError('ProcessService polling error', err)),
+    );
+
+    // Fork the polling stream to run in the background
+    yield* Effect.forkScoped(pollingStream);
+
+    // Expose the stream of changes as an array for easier consumption
+    const changesAsArray: Stream.Stream<string[]> = processesRef.changes.pipe(
+      Stream.map((set) => Array.from(set)),
+    );
+
+    return {
+      changes: changesAsArray,
+    } as const;
+  }),
+  dependencies: [NodeCommandExecutor.layer],
+}) {}

@@ -1,22 +1,11 @@
+export type { BreakConfig, WorkBreakConfig, AntiRsiConfig } from "./config-schema"
+export { BreakConfigSchema, WorkBreakConfigSchema, AntiRsiConfigSchema } from "./config-schema"
+
+import type { AntiRsiConfig } from "./config-schema"
+
 export type BreakType = "mini" | "work"
 
 export type AntiRsiState = "normal" | "in-mini" | "in-work"
-
-export interface BreakConfig {
-  intervalSeconds: number
-  durationSeconds: number
-}
-
-export interface WorkBreakConfig extends BreakConfig {
-  postponeSeconds: number
-}
-
-export interface AntiRsiConfig {
-  mini: BreakConfig
-  work: WorkBreakConfig
-  tickIntervalMs: number
-  naturalBreakContinuationWindowSeconds: number
-}
 
 export interface AntiRsiTimings {
   miniElapsed: number
