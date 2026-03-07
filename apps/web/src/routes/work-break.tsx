@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router"
 import { useOverlayMode } from "../hooks/useOverlayMode"
-import BreakOverlay from "../components/BreakOverlay"
+import { BreakOverlay } from "../components/BreakOverlay"
 import { Result, useAtomValue } from "@effect-atom/atom-react"
 import { configAtom, snapshotAtom } from "~/stores/antirsi"
 import { useAntiRsiApi } from "~/hooks/useAntiRsiApi"

@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router"
 import { ArrowLeft } from "lucide-react"
-import ConfigPanel from "../components/ConfigPanel"
+import { ConfigPanel } from "../components/ConfigPanel"
 import { buttonVariants } from "~/components/ui/Button"
 import { Result, useAtomValue } from "@effect-atom/atom-react"
 import { configAtom } from "~/stores/antirsi"
@@ -45,7 +45,7 @@ function ConfigRoute(): React.JSX.Element {
               </Link>
             </div>
             <h1 className="text-3xl font-bold">Configuration</h1>
-            <p className="text-muted-foreground">Adjust your break timing preferences</p>
+            <p className="text-muted-foreground">Adjust your break timing and appearance preferences</p>
           </header>
 
           <ConfigPanel config={r.value} api={api} onReset={handleReset} />

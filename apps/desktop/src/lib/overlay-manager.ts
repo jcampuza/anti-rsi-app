@@ -11,6 +11,10 @@ export class OverlayManager extends Effect.Service<OverlayManager>()('OverlayMan
 
     let overlayWindows: BrowserWindow[] = [];
     const breakTypeMap = new Map<BrowserWindow, BreakType>();
+    const getOverlayOpacity = (): number => {
+      const config = antiRsiService.getConfig();
+      return config.appearance.translucentWindows ? 0.94 : 1;
+    };
 
     const hideOverlayWindows = (): void => {
       if (overlayWindows.length === 0) {
@@ -35,6 +39,9 @@ export class OverlayManager extends Effect.Service<OverlayManager>()('OverlayMan
         overlayWindows.forEach((window) => {
           const route = breakType === 'mini' ? '/micro-break' : '/work-break';
           loadRenderer(window, { overlay: true, route });
+          if (process.platform !== 'linux') {
+            window.setOpacity(getOverlayOpacity());
+          }
           window.webContents.send(IPC_EVENTS.OVERLAY_BREAK, breakType);
           breakTypeMap.set(window, breakType);
           window.showInactive();
@@ -69,6 +76,9 @@ export class OverlayManager extends Effect.Service<OverlayManager>()('OverlayMan
 
         overlayWindow.setAlwaysOnTop(true, 'screen-saver');
         overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+        if (process.platform !== 'linux') {
+          overlayWindow.setOpacity(getOverlayOpacity());
+        }
 
         const route = breakType === 'mini' ? '/micro-break' : '/work-break';
         loadRenderer(overlayWindow, { overlay: true, route });

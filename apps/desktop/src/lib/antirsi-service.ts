@@ -36,9 +36,15 @@ const workConfigsEqual = (a: AntiRsiConfig['work'], b: AntiRsiConfig['work']): b
   a.durationSeconds === b.durationSeconds &&
   a.postponeSeconds === b.postponeSeconds;
 
+const appearanceConfigsEqual = (
+  a: AntiRsiConfig['appearance'],
+  b: AntiRsiConfig['appearance'],
+): boolean => a.translucentWindows === b.translucentWindows;
+
 const configsEqual = (left: AntiRsiConfig, right: AntiRsiConfig): boolean =>
   breakConfigsEqual(left.mini, right.mini) &&
   workConfigsEqual(left.work, right.work) &&
+  appearanceConfigsEqual(left.appearance, right.appearance) &&
   left.tickIntervalMs === right.tickIntervalMs &&
   left.naturalBreakContinuationWindowSeconds === right.naturalBreakContinuationWindowSeconds;
 
@@ -216,6 +222,7 @@ export class AntiRsiEngine extends Effect.Service<AntiRsiEngine>()('AntiRsiEngin
 
       // Synchronous snapshot access for overlay manager close handler
       getSnapshot,
+      getConfig: (): AntiRsiConfig => selectConfig(store.getState()),
 
       // Actions
       dispatch: (action: Action): Effect.Effect<void> =>

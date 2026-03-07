@@ -11,6 +11,7 @@ const cloneTimings = (timings: AntiRsiTimings): AntiRsiTimings => ({
 export const selectConfig = (state: StoreState): AntiRsiConfig => ({
   mini: { ...state.config.mini },
   work: { ...state.config.work },
+  appearance: { ...state.config.appearance },
   tickIntervalMs: state.config.tickIntervalMs,
   naturalBreakContinuationWindowSeconds: state.config.naturalBreakContinuationWindowSeconds,
 })

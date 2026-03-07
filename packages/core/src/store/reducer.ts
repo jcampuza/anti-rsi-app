@@ -32,10 +32,30 @@ const applyConfigPatch = (
 ): AntiRsiConfig => ({
   mini: { ...current.mini, ...(patch.mini ?? {}) },
   work: { ...current.work, ...(patch.work ?? {}) },
+  appearance: { ...current.appearance, ...(patch.appearance ?? {}) },
   tickIntervalMs: patch.tickIntervalMs ?? current.tickIntervalMs,
   naturalBreakContinuationWindowSeconds:
     patch.naturalBreakContinuationWindowSeconds ?? current.naturalBreakContinuationWindowSeconds,
 })
+
+const configsEqual = (left: AntiRsiConfig, right: AntiRsiConfig): boolean =>
+  left.mini.intervalSeconds === right.mini.intervalSeconds &&
+  left.mini.durationSeconds === right.mini.durationSeconds &&
+  left.work.intervalSeconds === right.work.intervalSeconds &&
+  left.work.durationSeconds === right.work.durationSeconds &&
+  left.work.postponeSeconds === right.work.postponeSeconds &&
+  left.appearance.translucentWindows === right.appearance.translucentWindows &&
+  left.tickIntervalMs === right.tickIntervalMs &&
+  left.naturalBreakContinuationWindowSeconds === right.naturalBreakContinuationWindowSeconds
+
+const shouldResetStateForConfigChange = (current: AntiRsiConfig, next: AntiRsiConfig): boolean =>
+  current.mini.intervalSeconds !== next.mini.intervalSeconds ||
+  current.mini.durationSeconds !== next.mini.durationSeconds ||
+  current.work.intervalSeconds !== next.work.intervalSeconds ||
+  current.work.durationSeconds !== next.work.durationSeconds ||
+  current.work.postponeSeconds !== next.work.postponeSeconds ||
+  current.tickIntervalMs !== next.tickIntervalMs ||
+  current.naturalBreakContinuationWindowSeconds !== next.naturalBreakContinuationWindowSeconds
 
 const resetStateWithConfig = (state: StoreState, config: AntiRsiConfig): StoreState => ({
   status: "normal",
@@ -261,6 +281,12 @@ export const reducer = (state: StoreState, action: Action): StoreState => {
       return tick(state, action as TickAction)
     case "SET_CONFIG": {
       const config = applyConfigPatch(state.config, (action as SetConfigAction).config)
+      if (configsEqual(state.config, config)) {
+        return state
+      }
+      if (!shouldResetStateForConfigChange(state.config, config)) {
+        return { ...state, config }
+      }
       return resetStateWithConfig(state, config)
     }
     case "RESET_CONFIG": {

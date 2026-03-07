@@ -1,7 +1,7 @@
 import { app, shell, BrowserWindow } from 'electron';
 import { join } from 'path';
 import { IPC_EVENTS } from '@antirsi/contracts';
-import { createStore, StoreTag } from '@antirsi/core';
+import { createStore, selectConfig, StoreTag, type AntiRsiConfig } from '@antirsi/core';
 import { ConfigStore } from './lib/config-store';
 import { AntiRsiEngine } from './lib/antirsi-service';
 import { wireIpcHandlers } from './ipc';
@@ -20,6 +20,7 @@ import * as NodeRuntime from '@effect/platform-node/NodeRuntime';
 import { ElectronApp } from './lib/electron-app';
 
 let mainWindow: BrowserWindow | null = null;
+const TRANSLUCENT_WINDOW_OPACITY = 0.94;
 
 app.setName('Anti RSI');
 
@@ -69,6 +70,8 @@ function createMainWindow(): void {
     },
   });
 
+  applyWindowAppearance(mainWindow, selectConfig(store.getState()));
+
   mainWindow.on('ready-to-show', () => {
     mainWindow?.show();
   });
@@ -88,6 +91,28 @@ function createMainWindow(): void {
 
   loadRenderer(mainWindow);
 }
+
+const getWindowOpacity = (config: AntiRsiConfig): number => {
+  if (!config.appearance.translucentWindows) {
+    return 1;
+  }
+
+  return TRANSLUCENT_WINDOW_OPACITY;
+};
+
+const applyWindowAppearance = (window: BrowserWindow, config: AntiRsiConfig): void => {
+  if (process.platform === 'linux') {
+    return;
+  }
+
+  window.setOpacity(getWindowOpacity(config));
+};
+
+const applyAllWindowAppearance = (config: AntiRsiConfig): void => {
+  BrowserWindow.getAllWindows().forEach((window) => {
+    applyWindowAppearance(window, config);
+  });
+};
 
 const showOrCreateMainWindow = (): void => {
   if (!mainWindow) {
@@ -128,6 +153,7 @@ const mainProgram = Effect.scoped(
                 BrowserWindow.getAllWindows().forEach((window) => {
                   window.webContents.send(IPC_EVENTS.EVENT, { type: 'config-changed', config });
                 });
+                applyAllWindowAppearance(config);
                 // Persist to disk
                 yield* configStore.save(config);
               }),
