@@ -55,11 +55,11 @@ function App() {
         const pendingWork = config.work.intervalSeconds - snapshot.timings.workElapsed
 
         return (
-          <div className="app-region-drag flex min-h-[520px] flex-col gap-4 rounded-2xl border border-border bg-background px-7 py-8">
+          <div className="app-region-drag flex min-h-[520px] flex-col gap-6 px-7 py-8">
             <Header />
 
             {snapshot.paused && processes.length > 0 && (
-              <section>
+              <section className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3">
                 <p className="text-sm font-semibold text-accent">
                   Timers paused because of active processes: {processes.join(", ")}
                 </p>
@@ -67,7 +67,7 @@ function App() {
             )}
 
             {snapshot.paused && processes.length === 0 && (
-              <section>
+              <section className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3">
                 <p className="text-sm font-semibold text-accent">Timers paused</p>
               </section>
             )}
@@ -90,7 +90,7 @@ function App() {
               />
             </section>
 
-            <div className="mt-6">
+            <div className="mt-2 border-t border-white/[0.08] pt-6">
               <HeaderActions api={api} snapshot={snapshot} />
             </div>
 
