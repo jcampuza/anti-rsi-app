@@ -19,8 +19,8 @@ const BreakOverlay = ({
 
   if (breakState !== "in-mini" && breakState !== "in-work") {
     return (
-      <div className="fixed inset-0 flex flex-col items-center justify-center gap-4 bg-background/90 backdrop-blur-sm px-10 py-10 text-foreground">
-        <div className="flex max-w-lg flex-col gap-6 text-center">
+      <div className="fixed inset-0 flex flex-col items-center justify-center gap-4 bg-black/70 px-10 py-10 text-foreground backdrop-blur-xl">
+        <div className="flex max-w-lg flex-col gap-6 rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(20,22,29,0.96),rgba(10,11,15,0.96))] px-8 py-10 text-center shadow-[0_28px_80px_rgba(0,0,0,0.5)] ring-1 ring-white/[0.05]">
           <h1 className="text-5xl font-bold">Break Complete</h1>
           <p className="text-lg text-muted-foreground">
             You can get back to work when the overlay closes.
@@ -37,17 +37,19 @@ const BreakOverlay = ({
 
   return (
     <div
-      className={`fixed inset-0 flex flex-col items-center justify-center gap-4 bg-background/75 backdrop-blur-sm px-10 py-10 text-foreground`}
+      className="fixed inset-0 flex flex-col items-center justify-center gap-4 bg-black/70 px-10 py-10 text-foreground backdrop-blur-xl"
     >
-      <div className="flex max-w-lg flex-col gap-6 text-center">
+      <div className="flex max-w-lg flex-col gap-6 rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(20,22,29,0.96),rgba(10,11,15,0.96))] px-8 py-10 text-center shadow-[0_28px_80px_rgba(0,0,0,0.5)] ring-1 ring-white/[0.05]">
         <h1 className="text-5xl font-bold">{isWorkBreak ? "Work Break" : "Micro Break"}</h1>
-        <p className="text-lg text-foreground">Relax your hands and look away from the screen.</p>
+        <p className="text-lg text-muted-foreground">
+          Relax your hands and look away from the screen.
+        </p>
         <div className="text-7xl font-bold tracking-[0.08em]">{formatSeconds(remaining)}</div>
         <progress
           value={elapsed}
           max={breakDuration}
           aria-label="Break progress"
-          className="mx-auto h-2 w-full max-w-md"
+          className="mx-auto mt-2 h-2 w-full max-w-md bg-white/[0.06]"
         />
 
         {onPostpone || onSkip ? (

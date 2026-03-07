@@ -1,14 +1,17 @@
 import { cva } from "class-variance-authority"
 
 export const buttonVariants = cva(
-  "rounded-md px-4 py-2 font-semibold border-0 transition-[background] duration-150 text-sm disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer",
+  "cursor-pointer rounded-md border px-4 py-2 text-sm font-semibold transition-[background,border-color,color,box-shadow,transform] duration-150 disabled:cursor-not-allowed disabled:opacity-60",
   {
     variants: {
       variant: {
-        primary: "bg-primary hover:bg-primary/90 text-primary-foreground",
-        secondary: "bg-secondary hover:bg-secondary/90 text-secondary-foreground",
-        link: "text-foreground transition-all duration-200 hover:bg-secondary/25 hover:shadow",
-        destructive: "bg-destructive hover:bg-destructive/90 text-destructive-foreground",
+        primary:
+          "border-white/10 bg-primary text-primary-foreground shadow-[0_14px_32px_rgba(17,24,39,0.35)] hover:border-white/20 hover:bg-primary/90",
+        secondary:
+          "border-border bg-secondary text-secondary-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] hover:border-white/[0.15] hover:bg-white/[0.08]",
+        link: "border-transparent text-muted-foreground hover:bg-white/[0.06] hover:text-foreground",
+        destructive:
+          "border-red-400/20 bg-destructive text-destructive-foreground hover:border-red-300/30 hover:bg-destructive/90",
       },
     },
     defaultVariants: {

@@ -32,49 +32,54 @@
 
 :root {
   --radius: 0.625rem;
-  --background: #f6e6ff;
-  --foreground: #000;
-  --card: #fff;
-  --card-foreground: #000;
-  --popover: #fff;
-  --popover-foreground: #000;
-  --primary: #5b3c8d;
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: #fff;
-  --secondary-foreground: #000;
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(49% 0 270);
-  --accent: #433060;
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: #08090c;
+  --foreground: #f5f7fb;
+  --card: rgba(20, 22, 29, 0.92);
+  --card-foreground: #f5f7fb;
+  --popover: rgba(17, 19, 24, 0.98);
+  --popover-foreground: #f5f7fb;
+  --primary: #2a4e92;
+  --primary-foreground: #f5f7fb;
+  --secondary: rgba(22, 24, 31, 0.92);
+  --secondary-foreground: #dce2ec;
+  --muted: #12151b;
+  --muted-foreground: #8f97a5;
+  --accent: #7ea4ff;
+  --accent-foreground: #08090c;
+  --destructive: #a84444;
+  --destructive-foreground: #fdf2f2;
+  --border: rgba(255, 255, 255, 0.08);
+  --input: rgba(255, 255, 255, 0.08);
+  --ring: #4f74bc;
+  --chart-1: #4f74bc;
+  --chart-2: #7ea4ff;
+  --chart-3: #8db4cf;
+  --chart-4: #7f8795;
+  --chart-5: #4f5d74;
+  --sidebar: #0c0d11;
+  --sidebar-foreground: #f5f7fb;
+  --sidebar-primary: #4f74bc;
+  --sidebar-primary-foreground: #f5f7fb;
+  --sidebar-accent: #12151b;
+  --sidebar-accent-foreground: #f5f7fb;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-ring: #4f74bc;
 }
 
 @layer base {
   html {
     font-size: 14px;
   }
+
   body {
-    @apply m-0 min-h-screen bg-background font-sans text-foreground antialiased;
+    @apply m-0 min-h-screen font-sans text-foreground antialiased;
+    background:
+      radial-gradient(circle at top, rgba(69, 96, 150, 0.18), transparent 34%),
+      linear-gradient(180deg, #0d0f13 0%, #08090c 100%);
   }
 
   #root {
-    @apply w-full max-w-3xl mx-auto;
+    @apply mx-auto min-h-screen w-full max-w-5xl px-4 py-4 sm:px-6 sm:py-6;
   }
 
   body.overlay-mode {
@@ -87,24 +92,28 @@
 
   progress {
     @apply h-1.5 overflow-hidden rounded-full;
+    color-scheme: dark;
   }
 }
 
 @layer components {
   .btn-primary {
-    @apply bg-primary rounded-md px-3 py-1.5 font-semibold text-foreground border-0 transition-[background] duration-150 text-sm;
+    @apply rounded-md border border-white/10 bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground shadow-[0_10px_24px_rgba(17,24,39,0.35)] transition-[background,border-color,transform] duration-150 hover:border-white/20 hover:bg-primary/90;
   }
 
   .input {
-    @apply w-full rounded-md border border-border bg-secondary px-3 py-2.5 text-secondary-foreground shadow-sm placeholder:text-muted-foreground/70 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background;
+    @apply w-full rounded-md border border-border bg-secondary px-3 py-2.5 text-secondary-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] placeholder:text-muted-foreground/70 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background;
   }
 
   /* Progress styling */
   progress::-webkit-progress-bar {
-    background: var(--card);
+    background: rgba(255, 255, 255, 0.06);
   }
   progress::-webkit-progress-value {
-    background: linear-gradient(90deg, #9679c4, #71d6ff);
+    background: linear-gradient(90deg, #35538f, #7ea4ff);
+  }
+  progress::-moz-progress-bar {
+    background: linear-gradient(90deg, #35538f, #7ea4ff);
   }
 }
 
