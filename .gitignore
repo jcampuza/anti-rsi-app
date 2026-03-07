@@ -4,3 +4,7 @@ out
 .DS_Store
 .eslintcache
 *.log*
+.turbo
+apps/*/dist
+apps/*/dist-electron
+artifacts

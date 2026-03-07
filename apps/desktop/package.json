@@ -1,0 +1,27 @@
+{
+  "name": "@antirsi/desktop",
+  "private": true,
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "bun run --parallel dev:bundle dev:electron",
+    "dev:bundle": "tsdown --watch",
+    "dev:electron": "bun run scripts/dev-electron.ts",
+    "build": "tsdown",
+    "start": "bun run scripts/start-electron.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@antirsi/contracts": "workspace:*",
+    "@antirsi/core": "workspace:*",
+    "@effect/platform": "^0.94.0",
+    "@effect/platform-node": "^0.104.0",
+    "effect": "^3.19.13",
+    "electron": "^40.8.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.3",
+    "wait-on": "^8.0.5"
+  },
+  "productName": "Anti RSI"
+}
