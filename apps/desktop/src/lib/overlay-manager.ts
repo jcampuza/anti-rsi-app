@@ -52,6 +52,8 @@ export class OverlayManager extends Effect.Service<OverlayManager>()('OverlayMan
       hideOverlayWindows();
 
       overlayWindows = displays.map((display) => {
+        // Keep break overlays as normal app windows so Cmd+Tab continues to surface
+        // Anti RSI while a break is active.
         const overlayWindow = new BrowserWindow({
           x: display.bounds.x,
           y: display.bounds.y,
@@ -63,7 +65,6 @@ export class OverlayManager extends Effect.Service<OverlayManager>()('OverlayMan
           resizable: false,
           movable: false,
           fullscreenable: false,
-          skipTaskbar: true,
           focusable: true,
           alwaysOnTop: true,
           webPreferences: {
@@ -75,10 +76,7 @@ export class OverlayManager extends Effect.Service<OverlayManager>()('OverlayMan
         });
 
         overlayWindow.setAlwaysOnTop(true, 'screen-saver');
-        overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-        if (process.platform !== 'linux') {
-          overlayWindow.setOpacity(getOverlayOpacity());
-        }
+        overlayWindow.setOpacity(getOverlayOpacity());
 
         const route = breakType === 'mini' ? '/micro-break' : '/work-break';
         loadRenderer(overlayWindow, { overlay: true, route });

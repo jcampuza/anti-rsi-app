@@ -7,4 +7,5 @@ out
 .turbo
 apps/*/dist
 apps/*/dist-electron
+apps/desktop/.electron-runtime
 artifacts

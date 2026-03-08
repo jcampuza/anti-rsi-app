@@ -12,6 +12,7 @@ import { TrayManager, TrayManagerCallbacksTag } from './lib/tray-manager';
 import { OverlayManager } from './lib/overlay-manager';
 import { Effect, Fiber, Layer, Logger, Option, Stream, PubSub } from 'effect';
 import { AppOrchestrator } from './lib/app-orchestrator';
+import { getAppDisplayName } from './lib/app-identity';
 import * as KeyValueStore from '@effect/platform/KeyValueStore';
 import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem';
 import * as NodePath from '@effect/platform-node/NodePath';
@@ -21,8 +22,8 @@ import { ElectronApp } from './lib/electron-app';
 
 let mainWindow: BrowserWindow | null = null;
 const TRANSLUCENT_WINDOW_OPACITY = 0.94;
-
-app.setName('Anti RSI');
+const isDevelopment = Boolean(process.env.VITE_DEV_SERVER_URL);
+const appDisplayName = getAppDisplayName(isDevelopment);
 
 // Initialize shared store
 const store = createStore();
@@ -59,9 +60,10 @@ function createMainWindow(): void {
     maxWidth: 900,
     height: 670,
     show: false,
+    title: appDisplayName,
     autoHideMenuBar: true,
-    titleBarStyle: 'hidden',
-    icon: resolveResourcePath('icon.png'),
+    titleBarStyle: 'hiddenInset',
+    trafficLightPosition: { x: 16, y: 18 },
     webPreferences: {
       preload: join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -81,8 +83,13 @@ function createMainWindow(): void {
     return { action: 'deny' };
   });
 
+  mainWindow.on('page-title-updated', (event) => {
+    event.preventDefault();
+    mainWindow?.setTitle(appDisplayName);
+  });
+
   mainWindow.webContents.on('did-finish-load', () => {
-    mainWindow?.setTitle('Anti RSI');
+    mainWindow?.setTitle(appDisplayName);
   });
 
   mainWindow.on('closed', () => {
@@ -91,6 +98,20 @@ function createMainWindow(): void {
 
   loadRenderer(mainWindow);
 }
+
+const configureAppIdentity = (): void => {
+  app.setName(appDisplayName);
+  app.setAboutPanelOptions({
+    applicationName: appDisplayName,
+    applicationVersion: app.getVersion(),
+    version: app.getVersion(),
+  });
+
+  const dockIconPath = resolveResourcePath('icon.png');
+  if (dockIconPath && app.dock) {
+    app.dock.setIcon(dockIconPath);
+  }
+};
 
 const getWindowOpacity = (config: AntiRsiConfig): number => {
   if (!config.appearance.translucentWindows) {
@@ -213,6 +234,9 @@ const rootProgram = Effect.scoped(
 
     // Gate all initialization on Electron readiness.
     yield* electronApp.whenReady;
+    yield* Effect.sync(() => {
+      configureAppIdentity();
+    });
 
     // Global Electron listeners (managed by scope finalizers).
     yield* electronApp.onScoped('activate', () => {

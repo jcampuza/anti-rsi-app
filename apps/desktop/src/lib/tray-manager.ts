@@ -1,6 +1,7 @@
 import { Tray, nativeImage, Menu } from 'electron';
 import { Context, Effect } from 'effect';
 import { resolveResourcePath } from './window-utils';
+import { APP_PRODUCT_NAME } from './app-identity';
 
 export type TrayManagerCallbacks = {
   showOrCreateMainWindow: () => void;
@@ -19,22 +20,29 @@ export class TrayManager extends Effect.Service<TrayManager>()('TrayManager', {
 
     const tray = yield* Effect.acquireRelease(
       Effect.sync(() => {
-        const trayIcon = nativeImage.createFromPath(
-          resolveResourcePath('icon-menubarTemplate.png'),
-        );
+        const trayTemplateIconPath = resolveResourcePath('icon-menubarTemplate.png');
+        const trayTemplateIcon = trayTemplateIconPath
+          ? nativeImage.createFromPath(trayTemplateIconPath)
+          : nativeImage.createEmpty();
+        const fallbackTrayIconPath = resolveResourcePath('icon.png');
+        const fallbackTrayIcon = fallbackTrayIconPath
+          ? nativeImage.createFromPath(fallbackTrayIconPath)
+          : nativeImage.createEmpty();
+        const trayIcon = trayTemplateIcon.isEmpty() ? fallbackTrayIcon : trayTemplateIcon;
+
         if (!trayIcon.isEmpty()) {
           trayIcon.setTemplateImage(true);
         }
 
         const tray = new Tray(trayIcon);
-        tray.setToolTip('Anti RSI');
+        tray.setToolTip(APP_PRODUCT_NAME);
         tray.on('click', () => {
           callbacks.showOrCreateMainWindow();
         });
 
         const trayMenu = [
           {
-            label: 'Show Anti RSI',
+            label: `Show ${APP_PRODUCT_NAME}`,
             click: () => {
               callbacks.showOrCreateMainWindow();
             },
@@ -54,7 +62,7 @@ export class TrayManager extends Effect.Service<TrayManager>()('TrayManager', {
           },
           { type: 'separator' as const },
           {
-            label: 'Quit Anti RSI',
+            label: `Quit ${APP_PRODUCT_NAME}`,
             role: 'quit' as const,
           },
         ];

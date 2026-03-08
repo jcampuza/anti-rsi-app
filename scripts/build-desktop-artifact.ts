@@ -162,6 +162,7 @@ const stagePackageJson = {
     },
     mac: {
       target: options.target === 'dmg' ? ['dmg', 'zip'] : [options.target],
+      icon: 'icon.icns',
       category: 'public.app-category.productivity',
       entitlementsInherit: 'apps/desktop/resources/entitlements.mac.plist',
       notarize: false,

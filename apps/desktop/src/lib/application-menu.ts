@@ -1,5 +1,7 @@
-import { app, shell, Menu, MenuItemConstructorOptions } from 'electron';
+import { app, shell, Menu } from 'electron';
 import { Context, Effect } from 'effect';
+
+import { buildApplicationMenuTemplate } from './application-menu-template';
 
 export type ApplicationMenuCallbacks = {
   showOrCreateMainWindow: () => void;
@@ -17,84 +19,12 @@ export class ApplicationMenu extends Effect.Service<ApplicationMenu>()('Applicat
 
     const menu = yield* Effect.acquireRelease(
       Effect.sync(() => {
-        const template: MenuItemConstructorOptions[] = [
-          {
-            label: app.name,
-            submenu: [
-              { role: 'about' },
-              { type: 'separator' },
-              { role: 'services' },
-              { type: 'separator' },
-              { role: 'hide' },
-              { role: 'hideOthers' },
-              { role: 'unhide' },
-              { type: 'separator' },
-              { role: 'quit' },
-            ],
-          },
-          {
-            label: 'File',
-            submenu: [
-              {
-                label: 'New Window',
-                accelerator: 'Command+N',
-                click: () => {
-                  callbacks.showOrCreateMainWindow();
-                },
-              },
-              { type: 'separator' },
-              { role: 'close' },
-            ],
-          },
-          {
-            label: 'Edit',
-            submenu: [
-              { role: 'undo' },
-              { role: 'redo' },
-              { type: 'separator' },
-              { role: 'cut' },
-              { role: 'copy' },
-              { role: 'paste' },
-              { role: 'pasteAndMatchStyle' },
-              { role: 'delete' },
-              { role: 'selectAll' },
-            ],
-          },
-          {
-            label: 'View',
-            submenu: [
-              ...(isDevelopment
-                ? ([
-                    { role: 'reload' },
-                    { role: 'forceReload' },
-                    { role: 'toggleDevTools' },
-                  ] satisfies MenuItemConstructorOptions[])
-                : []),
-              { type: 'separator' },
-              { role: 'togglefullscreen' },
-            ],
-          },
-          {
-            label: 'Window',
-            submenu: [
-              { role: 'minimize' },
-              { role: 'zoom' },
-              { type: 'separator' },
-              { role: 'front' },
-            ],
-          },
-          {
-            role: 'help',
-            submenu: [
-              {
-                label: 'Learn More',
-                click: async () => {
-                  await shell.openExternal('https://github.com/ruuda/antiRSI');
-                },
-              },
-            ],
-          },
-        ];
+        const template = buildApplicationMenuTemplate({
+          appName: app.name,
+          isDevelopment,
+          onShowOrCreateMainWindow: callbacks.showOrCreateMainWindow,
+          onOpenHelp: () => shell.openExternal('https://github.com/ruuda/antiRSI'),
+        });
 
         const menu = Menu.buildFromTemplate(template);
         Menu.setApplicationMenu(menu);

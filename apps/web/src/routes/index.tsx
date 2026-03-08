@@ -15,13 +15,7 @@ export const Route = createFileRoute("/")({
 
 function Header() {
   return (
-    <header className="app-region-no-drag flex items-center justify-between gap-6 text-foreground">
-      <div className="space-y-1">
-        <h1 className="text-3xl font-bold h-12 w-12">
-          <img src="/icon.png" alt="AntiRSI" className="h-full w-full" />
-        </h1>
-      </div>
-
+    <header className="app-region-no-drag flex items-center justify-end gap-6 text-foreground">
       <Link
         className={buttonVariants({
           variant: "link",

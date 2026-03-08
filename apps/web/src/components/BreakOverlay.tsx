@@ -1,6 +1,7 @@
 import { Button } from "~/components/ui/Button"
 import type { AntiRsiConfig, AntiRsiSnapshot } from "@antirsi/core"
 import formatSeconds from "../utils/time"
+import { ProgressBar } from "./ui/ProgressBar"
 
 interface BreakOverlayProps {
   snapshot: AntiRsiSnapshot
@@ -46,20 +47,31 @@ export const BreakOverlay = ({
   const breakDuration = isWorkBreak ? config.work.durationSeconds : config.mini.durationSeconds
   const elapsed = isWorkBreak ? snapshot.timings.workTaking : snapshot.timings.miniTaking
   const remaining = Math.max(breakDuration - elapsed, 0)
+  const progressAnimationMs = Math.max(config.tickIntervalMs + 160, 280)
 
   return (
     <div className={getOverlayShellClassName(config)}>
       <div className={getOverlayCardClassName(config)}>
-        <h1 className="text-5xl font-bold">{isWorkBreak ? "Work Break" : "Micro Break"}</h1>
-        <p className="text-lg text-muted-foreground">
+        <h1 className="text-3xl font-semibold text-white/94 sm:text-[2.25rem]">
+          {isWorkBreak ? "Work Break" : "Micro Break"}
+        </h1>
+        <p className="text-sm text-muted-foreground sm:text-base">
           Relax your hands and look away from the screen.
         </p>
-        <div className="text-7xl font-bold tracking-[0.08em]">{formatSeconds(remaining)}</div>
-        <progress
+        <div className="flex flex-col items-center gap-2">
+          <span className="text-[0.64rem] font-medium uppercase tracking-[0.22em] text-muted-foreground/80">
+            Remaining
+          </span>
+          <div className="text-[clamp(2.4rem,6vw,3.75rem)] font-medium leading-none tabular-nums tracking-[-0.05em] text-white/95">
+            {formatSeconds(remaining)}
+          </div>
+        </div>
+        <ProgressBar
           value={elapsed}
           max={breakDuration}
-          aria-label="Break progress"
-          className="mx-auto mt-2 h-2 w-full max-w-md bg-white/[0.06]"
+          label="Break progress"
+          animationMs={progressAnimationMs}
+          className="mx-auto mt-1 h-2 w-full max-w-md"
         />
 
         {onPostpone || onSkip ? (
