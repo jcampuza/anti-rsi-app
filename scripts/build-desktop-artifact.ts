@@ -98,6 +98,19 @@ const run = (command: string[], cwd: string, env?: NodeJS.ProcessEnv): void => {
   }
 };
 
+const hasMacCodeSigningIdentity = (): boolean => {
+  const result = spawnSync('security', ['find-identity', '-v', '-p', 'codesigning'], {
+    encoding: 'utf8',
+  });
+  if (result.status !== 0) {
+    return false;
+  }
+
+  const output = `${result.stdout ?? ''}\n${result.stderr ?? ''}`;
+  const match = output.match(/(\d+)\s+valid identities found/);
+  return match !== null && Number(match[1]) > 0;
+};
+
 const assertPath = (path: string, label: string): void => {
   if (!existsSync(path)) {
     throw new Error(`Missing ${label} at ${path}`);
@@ -121,6 +134,15 @@ if (!options.skipBuild) {
 assertPath(desktopDistDir, 'desktop bundle');
 assertPath(webDistDir, 'web bundle');
 assertPath(desktopResourcesDir, 'desktop resources');
+
+const macEntitlementsPath = 'apps/desktop/resources/entitlements.mac.plist';
+const shouldUseMacSigningIdentity = hasMacCodeSigningIdentity();
+
+console.log(
+  shouldUseMacSigningIdentity
+    ? 'Packaging macOS artifact with an available code-signing identity'
+    : 'Packaging macOS artifact without a code-signing identity; hardened runtime disabled for local compatibility',
+);
 
 const stageRoot = mkdtempSync(join(tmpdir(), 'antirsi-desktop-stage-'));
 const stageAppDir = join(stageRoot, 'app');
@@ -164,7 +186,11 @@ const stagePackageJson = {
       target: options.target === 'dmg' ? ['dmg', 'zip'] : [options.target],
       icon: 'icon.icns',
       category: 'public.app-category.productivity',
-      entitlementsInherit: 'apps/desktop/resources/entitlements.mac.plist',
+      identity: shouldUseMacSigningIdentity ? undefined : '-',
+      hardenedRuntime: shouldUseMacSigningIdentity,
+      gatekeeperAssess: false,
+      entitlements: shouldUseMacSigningIdentity ? macEntitlementsPath : undefined,
+      entitlementsInherit: shouldUseMacSigningIdentity ? macEntitlementsPath : undefined,
       notarize: false,
     },
     publish: [

@@ -7,6 +7,7 @@ import { defineConfig } from "vite"
 const port = Number(process.env.PORT ?? 5733)
 
 export default defineConfig({
+  base: "./",
   plugins: [
     tanstackRouter({
       target: "react",

@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow } from 'electron';
+import { app, shell, BrowserWindow, ipcMain } from 'electron';
 import { join } from 'path';
 import { IPC_EVENTS } from '@antirsi/contracts';
 import { createStore, selectConfig, StoreTag, type AntiRsiConfig } from '@antirsi/core';
@@ -19,11 +19,13 @@ import * as NodePath from '@effect/platform-node/NodePath';
 import * as NodeContext from '@effect/platform-node/NodeContext';
 import * as NodeRuntime from '@effect/platform-node/NodeRuntime';
 import { ElectronApp } from './lib/electron-app';
+import { getAppLogPath, writeAppLog } from './lib/app-logger';
 
 let mainWindow: BrowserWindow | null = null;
 const TRANSLUCENT_WINDOW_OPACITY = 0.94;
 const isDevelopment = Boolean(process.env.VITE_DEV_SERVER_URL);
 const appDisplayName = getAppDisplayName(isDevelopment);
+const RENDERER_LOG_CHANNEL = '__ANTIRSI_RENDERER_LOG__';
 
 // Initialize shared store
 const store = createStore();
@@ -75,6 +77,7 @@ function createMainWindow(): void {
   applyWindowAppearance(mainWindow, selectConfig(store.getState()));
 
   mainWindow.on('ready-to-show', () => {
+    writeAppLog('main', 'Main window ready-to-show');
     mainWindow?.show();
   });
 
@@ -89,13 +92,46 @@ function createMainWindow(): void {
   });
 
   mainWindow.webContents.on('did-finish-load', () => {
+    writeAppLog('main', 'Renderer finished load', {
+      url: mainWindow?.webContents.getURL(),
+      title: mainWindow?.getTitle(),
+    });
     mainWindow?.setTitle(appDisplayName);
   });
 
+  mainWindow.webContents.on(
+    'did-fail-load',
+    (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+      writeAppLog('main', 'Renderer did-fail-load', {
+        errorCode,
+        errorDescription,
+        validatedURL,
+        isMainFrame,
+      });
+    },
+  );
+
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    writeAppLog('main', 'Renderer process gone', details);
+  });
+
+  mainWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+    writeAppLog('renderer', 'console-message', {
+      level,
+      message,
+      line,
+      sourceId,
+    });
+  });
+
   mainWindow.on('closed', () => {
+    writeAppLog('main', 'Main window closed');
     mainWindow = null;
   });
 
+  writeAppLog('main', 'Loading renderer', {
+    devServerUrl: process.env['VITE_DEV_SERVER_URL'] ?? null,
+  });
   loadRenderer(mainWindow);
 }
 
@@ -111,6 +147,34 @@ const configureAppIdentity = (): void => {
   if (dockIconPath && app.dock) {
     app.dock.setIcon(dockIconPath);
   }
+};
+
+const configureAppLogging = (): void => {
+  const mainLogPath = getAppLogPath('main');
+  const rendererLogPath = getAppLogPath('renderer');
+
+  writeAppLog('main', 'App logging configured', {
+    mainLogPath,
+    rendererLogPath,
+    isDevelopment,
+    userDataPath: app.getPath('userData'),
+  });
+
+  process.on('uncaughtException', (error) => {
+    writeAppLog('main', 'uncaughtException', error);
+  });
+
+  process.on('unhandledRejection', (reason) => {
+    writeAppLog('main', 'unhandledRejection', reason);
+  });
+
+  app.on('render-process-gone', (_event, _webContents, details) => {
+    writeAppLog('main', 'App render-process-gone', details);
+  });
+
+  app.on('child-process-gone', (_event, details) => {
+    writeAppLog('main', 'Child process gone', details);
+  });
 };
 
 const getWindowOpacity = (config: AntiRsiConfig): number => {
@@ -235,7 +299,11 @@ const rootProgram = Effect.scoped(
     // Gate all initialization on Electron readiness.
     yield* electronApp.whenReady;
     yield* Effect.sync(() => {
+      configureAppLogging();
       configureAppIdentity();
+      ipcMain.on(RENDERER_LOG_CHANNEL, (_event, payload) => {
+        writeAppLog('renderer', 'renderer-event', payload);
+      });
     });
 
     // Global Electron listeners (managed by scope finalizers).

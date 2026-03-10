@@ -3,6 +3,8 @@ import type { AntiRsiDesktopBridge, AntiRsiWindowApi, MainEvent } from "@antirsi
 import { IPC_EVENTS, IPC_ACTIONS } from "@antirsi/contracts"
 import type { Action, AntiRsiConfig, AntiRsiSnapshot } from "@antirsi/core"
 
+const RENDERER_LOG_CHANNEL = "__ANTIRSI_RENDERER_LOG__"
+
 export const antirsi: AntiRsiDesktopBridge = {
   getSnapshot: (): Promise<AntiRsiSnapshot> => ipcRenderer.invoke(IPC_ACTIONS.GET_SNAPSHOT),
 
@@ -29,8 +31,36 @@ export const api: AntiRsiWindowApi = {
   },
 }
 
+const reportRendererError = (type: string, detail: unknown): void => {
+  ipcRenderer.send(RENDERER_LOG_CHANNEL, {
+    type,
+    detail:
+      detail instanceof Error
+        ? { name: detail.name, message: detail.message, stack: detail.stack }
+        : detail,
+  })
+}
+
+window.addEventListener("error", (event) => {
+  reportRendererError("window.error", {
+    message: event.message,
+    filename: event.filename,
+    lineno: event.lineno,
+    colno: event.colno,
+    error:
+      event.error instanceof Error
+        ? { name: event.error.name, message: event.error.message, stack: event.error.stack }
+        : event.error,
+  })
+})
+
+window.addEventListener("unhandledrejection", (event) => {
+  reportRendererError("window.unhandledrejection", event.reason)
+})
+
 try {
   contextBridge.exposeInMainWorld("api", api)
 } catch (error) {
+  reportRendererError("contextBridge.exposeInMainWorld.failed", error)
   console.error(error)
 }
