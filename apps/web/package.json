@@ -12,23 +12,15 @@
   "dependencies": {
     "@antirsi/contracts": "workspace:*",
     "@antirsi/core": "workspace:*",
-    "@effect-atom/atom-react": "^0.3.4",
-    "@tanstack/react-router": "^1.141.6",
-    "@tanstack/react-router-devtools": "^1.141.6",
+    "@solidjs/router": "^0.15.4",
     "class-variance-authority": "^0.7.1",
-    "effect": "^3.19.13",
-    "lucide-react": "^0.544.0",
-    "react": "^19.2.3",
-    "react-dom": "^19.2.3",
-    "zustand": "5.0.8"
+    "lucide-solid": "^0.544.0",
+    "solid-js": "^1.9.10"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.18",
-    "@tanstack/router-plugin": "^1.141.7",
-    "@types/react": "^19.2.7",
-    "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^6.0.1",
     "tailwindcss": "^4.1.18",
-    "vite": "^8.0.10"
+    "vite": "^8.0.10",
+    "vite-plugin-solid": "^2.11.10"
   }
 }

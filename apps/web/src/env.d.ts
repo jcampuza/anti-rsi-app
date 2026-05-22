@@ -1,9 +1,17 @@
 /// <reference types="vite/client" />
 
-import type { AntiRsiWindowApi } from "@antirsi/contracts"
+interface ImportMetaEnv {
+  readonly VITE_API_BASE_URL?: string
+}
+
+interface ImportMeta {
+  readonly env: ImportMetaEnv
+}
 
 declare global {
   interface Window {
-    api: AntiRsiWindowApi
+    api?: import("@antirsi/contracts").AntiRsiWindowApi
   }
 }
+
+export {}

@@ -1,11 +1,14 @@
-export function Versions(): React.JSX.Element {
-  const versions = window.api.meta.versions
+import type { Component } from "solid-js"
+import { resolveWindowMeta } from "~/lib/antirsi-client"
+
+export const Versions: Component = () => {
+  const versions = resolveWindowMeta().versions
 
   return (
-    <ul className="flex justify-center gap-4 text-xs text-text-tertiary">
-      <li className="list-none">Electron v{versions.electron}</li>
-      <li className="list-none">Chromium v{versions.chrome}</li>
-      <li className="list-none">Node v{versions.node}</li>
+    <ul class="flex justify-center gap-4 text-xs text-text-tertiary">
+      <li class="list-none">Electron v{versions.electron}</li>
+      <li class="list-none">Chromium v{versions.chrome}</li>
+      <li class="list-none">Node v{versions.node}</li>
     </ul>
   )
 }

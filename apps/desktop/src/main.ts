@@ -6,6 +6,7 @@ import { ConfigStore } from './lib/config-store';
 import { AntiRsiEngine } from './lib/antirsi-service';
 import { wireIpcHandlers } from './ipc';
 import { ProcessService } from './lib/process-service';
+import { ensureRendererServer, stopRendererServer } from './lib/renderer-runtime';
 import { loadRenderer, resolveResourcePath } from './lib/window-utils';
 import { ApplicationMenu, ApplicationMenuCallbacksTag } from './lib/application-menu';
 import { TrayManager, TrayManagerCallbacksTag } from './lib/tray-manager';
@@ -130,7 +131,8 @@ function createMainWindow(): void {
   });
 
   writeAppLog('main', 'Loading renderer', {
-    devServerUrl: process.env['VITE_DEV_SERVER_URL'] ?? null,
+    rendererBaseUrl: process.env['ANTIRSI_RENDERER_URL'] ?? process.env['VITE_DEV_SERVER_URL'] ?? null,
+    route: null,
   });
   loadRenderer(mainWindow);
 }
@@ -298,12 +300,16 @@ const rootProgram = Effect.scoped(
 
     // Gate all initialization on Electron readiness.
     yield* electronApp.whenReady;
+    yield* Effect.promise(() => ensureRendererServer(__dirname));
     yield* Effect.sync(() => {
       configureAppLogging();
       configureAppIdentity();
       ipcMain.on(RENDERER_LOG_CHANNEL, (_event, payload) => {
         writeAppLog('renderer', 'renderer-event', payload);
       });
+    });
+    yield* electronApp.onScoped('will-quit', () => {
+      void stopRendererServer();
     });
 
     // Global Electron listeners (managed by scope finalizers).

@@ -1,4 +1,5 @@
-import { cva } from "class-variance-authority"
+import { cva, type VariantProps } from "class-variance-authority"
+import { splitProps, type Component, type JSX } from "solid-js"
 
 export const buttonVariants = cva(
   "cursor-pointer rounded-md border px-4 py-2 text-sm font-semibold transition-[background,border-color,color,box-shadow,transform] duration-150 disabled:cursor-not-allowed disabled:opacity-60",
@@ -20,10 +21,16 @@ export const buttonVariants = cva(
   },
 )
 
-interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: "primary" | "secondary" | "destructive"
-}
+type ButtonProps = JSX.ButtonHTMLAttributes<HTMLButtonElement> &
+  VariantProps<typeof buttonVariants>
 
-export function Button({ variant, ...props }: ButtonProps) {
-  return <button className={buttonVariants({ variant })} {...props} />
+export const Button: Component<ButtonProps> = (props) => {
+  const [local, rest] = splitProps(props, ["variant", "class", "classList"])
+  return (
+    <button
+      class={buttonVariants({ variant: local.variant, class: local.class })}
+      classList={local.classList}
+      {...rest}
+    />
+  )
 }

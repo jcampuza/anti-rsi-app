@@ -24,10 +24,23 @@ export const antirsi: AntiRsiDesktopBridge = {
   },
 }
 
+const rendererBaseUrl = (() => {
+  const configured =
+    process.env['ANTIRSI_RENDERER_URL']?.trim() ?? process.env['VITE_DEV_SERVER_URL']?.trim()
+  if (!configured) {
+    return undefined
+  }
+  return configured.endsWith('/') ? configured : `${configured}/`
+})()
+
+const apiBaseUrl = process.env['ANTIRSI_API_BASE_URL']?.trim()
+
 export const api: AntiRsiWindowApi = {
   antirsi,
   meta: {
     versions: process.versions,
+    ...(rendererBaseUrl ? { rendererBaseUrl } : {}),
+    ...(apiBaseUrl ? { apiBaseUrl } : {}),
   },
 }
 

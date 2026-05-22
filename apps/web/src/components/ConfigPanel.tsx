@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react"
-import type { AntiRsiRendererApi } from "../hooks/useAntiRsiApi"
-import type { BreakConfig, AntiRsiConfig, AppearanceConfig, WorkBreakConfig } from "@antirsi/core"
+import type { AntiRsiConfig, AppearanceConfig, BreakConfig, WorkBreakConfig } from "@antirsi/core"
+import { createEffect, createSignal, type Component } from "solid-js"
+import type { AntiRsiRendererApi } from "~/context/antirsi"
 import { Button } from "~/components/ui/Button"
 
 interface ConfigPanelProps {
@@ -9,133 +9,133 @@ interface ConfigPanelProps {
   onReset: () => void
 }
 
-export const ConfigPanel = ({ config, api, onReset }: ConfigPanelProps): React.JSX.Element => {
-  const [miniConfig, setMiniConfig] = useState<BreakConfig>(() => ({ ...config.mini }))
-  const [workConfig, setWorkConfig] = useState<WorkBreakConfig>(() => ({ ...config.work }))
-  const [appearanceConfig, setAppearanceConfig] = useState<AppearanceConfig>(() => ({
-    ...config.appearance,
-  }))
+export const ConfigPanel: Component<ConfigPanelProps> = (props) => {
+  const [miniConfig, setMiniConfig] = createSignal<BreakConfig>({ ...props.config.mini })
+  const [workConfig, setWorkConfig] = createSignal<WorkBreakConfig>({ ...props.config.work })
+  const [appearanceConfig, setAppearanceConfig] = createSignal<AppearanceConfig>({
+    ...props.config.appearance,
+  })
 
-  useEffect(() => {
-    setMiniConfig({ ...config.mini })
-    setWorkConfig({ ...config.work })
-    setAppearanceConfig({ ...config.appearance })
-  }, [config])
+  createEffect(() => {
+    setMiniConfig({ ...props.config.mini })
+    setWorkConfig({ ...props.config.work })
+    setAppearanceConfig({ ...props.config.appearance })
+  })
 
   const handleApply = (): void => {
-    api
+    props.api
       .dispatch({
         type: "SET_CONFIG",
         config: {
-          mini: miniConfig,
-          work: workConfig,
-          appearance: appearanceConfig,
+          mini: miniConfig(),
+          work: workConfig(),
+          appearance: appearanceConfig(),
         },
       })
       .catch((error) => console.error("[AntiRSI] Failed to update config", error))
   }
 
   return (
-    <div className="app-region-no-drag flex flex-col gap-5">
-      <section className="flex flex-col gap-5 rounded-2xl border border-white/[0.08] bg-card p-5 text-foreground shadow-[0_18px_40px_rgba(0,0,0,0.22)] ring-1 ring-white/[0.04]">
-        <div className="space-y-1">
-          <h3 className="text-lg font-semibold">Timing Overrides</h3>
-          <p className="text-sm text-muted-foreground">
+    <div class="app-region-no-drag flex flex-col gap-5">
+      <section class="flex flex-col gap-5 rounded-2xl border border-white/[0.08] bg-card p-5 text-foreground shadow-[0_18px_40px_rgba(0,0,0,0.22)] ring-1 ring-white/[0.04]">
+        <div class="space-y-1">
+          <h3 class="text-lg font-semibold">Timing Overrides</h3>
+          <p class="text-sm text-muted-foreground">
             Adjust when breaks start and how long they last.
           </p>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <label className="flex items-start gap-3 rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-4 text-sm text-muted-foreground sm:col-span-2 lg:col-span-3">
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <label class="flex items-start gap-3 rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-4 text-sm text-muted-foreground sm:col-span-2 lg:col-span-3">
             <input
-              className="mt-0.5 h-4 w-4 accent-[var(--color-accent)]"
+              class="mt-0.5 h-4 w-4 accent-[var(--color-accent)]"
               type="checkbox"
-              checked={workConfig.enabled}
+              checked={workConfig().enabled}
               onChange={(event) =>
                 setWorkConfig({
-                  ...workConfig,
-                  enabled: event.target.checked,
+                  ...workConfig(),
+                  enabled: event.currentTarget.checked,
                 })
               }
             />
-            <span className="space-y-1">
-              <span className="block font-semibold text-foreground">Enable work breaks</span>
-              <span className="block">Turn this off to keep only micro pauses active.</span>
+            <span class="space-y-1">
+              <span class="block font-semibold text-foreground">Enable work breaks</span>
+              <span class="block">Turn this off to keep only micro pauses active.</span>
             </span>
           </label>
-          <label className="flex flex-col gap-1 text-sm text-muted-foreground">
+          <label class="flex flex-col gap-1 text-sm text-muted-foreground">
             Micro Pause Interval (s)
             <input
-              className="input"
+              class="input"
               type="number"
               min={30}
-              value={miniConfig.intervalSeconds}
-              onChange={(event) =>
+              value={miniConfig().intervalSeconds}
+              onInput={(event) =>
                 setMiniConfig({
-                  ...miniConfig,
-                  intervalSeconds: Number.parseInt(event.target.value, 10),
+                  ...miniConfig(),
+                  intervalSeconds: Number.parseInt(event.currentTarget.value, 10),
                 })
               }
             />
           </label>
-          <label className="flex flex-col gap-1 text-sm text-muted-foreground">
+          <label class="flex flex-col gap-1 text-sm text-muted-foreground">
             Micro Pause Duration (s)
             <input
-              className="input"
+              class="input"
               type="number"
               min={3}
-              value={miniConfig.durationSeconds}
-              onChange={(event) =>
+              value={miniConfig().durationSeconds}
+              onInput={(event) =>
                 setMiniConfig({
-                  ...miniConfig,
-                  durationSeconds: Number.parseInt(event.target.value, 10),
+                  ...miniConfig(),
+                  durationSeconds: Number.parseInt(event.currentTarget.value, 10),
                 })
               }
             />
           </label>
-          <label className="flex flex-col gap-1 text-sm text-muted-foreground">
+          <label class="flex flex-col gap-1 text-sm text-muted-foreground">
             Work Break Interval (s)
             <input
-              className="input"
+              class="input"
               type="number"
               min={60}
-              disabled={!workConfig.enabled}
-              value={workConfig.intervalSeconds}
-              onChange={(event) =>
+              disabled={!workConfig().enabled}
+              value={workConfig().intervalSeconds}
+              onInput={(event) =>
                 setWorkConfig({
-                  ...workConfig,
-                  intervalSeconds: Number.parseInt(event.target.value, 10),
+                  ...workConfig(),
+                  intervalSeconds: Number.parseInt(event.currentTarget.value, 10),
                 })
               }
             />
           </label>
-          <label className="flex flex-col gap-1 text-sm text-muted-foreground">
+          <label class="flex flex-col gap-1 text-sm text-muted-foreground">
             Work Break Duration (s)
             <input
-              className="input"
+              class="input"
               type="number"
               min={60}
-              disabled={!workConfig.enabled}
-              value={workConfig.durationSeconds}
-              onChange={(event) =>
+              disabled={!workConfig().enabled}
+              value={workConfig().durationSeconds}
+              onInput={(event) =>
                 setWorkConfig({
-                  ...workConfig,
-                  durationSeconds: Number.parseInt(event.target.value, 10),
+                  ...workConfig(),
+                  durationSeconds: Number.parseInt(event.currentTarget.value, 10),
                 })
               }
             />
           </label>
-          <label className="flex flex-col gap-1 text-sm text-muted-foreground">
+          <label class="flex flex-col gap-1 text-sm text-muted-foreground">
             Postpone Amount (s)
             <input
-              className="input"
+              class="input"
               type="number"
               min={60}
-              disabled={!workConfig.enabled}
-              value={workConfig.postponeSeconds}
-              onChange={(event) =>
+              disabled={!workConfig().enabled}
+              value={workConfig().postponeSeconds}
+              onInput={(event) =>
                 setWorkConfig({
-                  ...workConfig,
-                  postponeSeconds: Number.parseInt(event.target.value, 10),
+                  ...workConfig(),
+                  postponeSeconds: Number.parseInt(event.currentTarget.value, 10),
                 })
               }
             />
@@ -143,36 +143,36 @@ export const ConfigPanel = ({ config, api, onReset }: ConfigPanelProps): React.J
         </div>
       </section>
 
-      <section className="flex flex-col gap-5 rounded-2xl border border-white/[0.08] bg-card p-5 text-foreground shadow-[0_18px_40px_rgba(0,0,0,0.22)] ring-1 ring-white/[0.04]">
-        <div className="space-y-1">
-          <h3 className="text-lg font-semibold">Appearance</h3>
+      <section class="flex flex-col gap-5 rounded-2xl border border-white/[0.08] bg-card p-5 text-foreground shadow-[0_18px_40px_rgba(0,0,0,0.22)] ring-1 ring-white/[0.04]">
+        <div class="space-y-1">
+          <h3 class="text-lg font-semibold">Appearance</h3>
         </div>
 
-        <label className="flex items-start gap-3 rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-4 text-sm text-muted-foreground">
+        <label class="flex items-start gap-3 rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-4 text-sm text-muted-foreground">
           <input
-            className="mt-0.5 h-4 w-4 accent-[var(--color-accent)]"
+            class="mt-0.5 h-4 w-4 accent-[var(--color-accent)]"
             type="checkbox"
-            checked={appearanceConfig.translucentWindows}
+            checked={appearanceConfig().translucentWindows}
             onChange={(event) =>
               setAppearanceConfig({
-                translucentWindows: event.target.checked,
+                translucentWindows: event.currentTarget.checked,
               })
             }
           />
-          <span className="space-y-1">
-            <span className="block font-semibold text-foreground">Translucent windows</span>
-            <span className="block">
+          <span class="space-y-1">
+            <span class="block font-semibold text-foreground">Translucent windows</span>
+            <span class="block">
               Apply a subtle window translucency for the main desktop and break windows.
             </span>
           </span>
         </label>
       </section>
 
-      <div className="flex flex-wrap gap-3">
-        <Button type="button" variant="primary" onClick={handleApply} disabled={!api}>
+      <div class="flex flex-wrap gap-3">
+        <Button type="button" variant="primary" onClick={handleApply}>
           Apply Settings
         </Button>
-        <Button type="button" variant="secondary" onClick={onReset}>
+        <Button type="button" variant="secondary" onClick={props.onReset}>
           Reset Defaults
         </Button>
       </div>

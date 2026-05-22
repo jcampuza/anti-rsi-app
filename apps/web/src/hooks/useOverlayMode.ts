@@ -1,17 +1,15 @@
-import { useEffect } from "react"
+import { createEffect, onCleanup } from "solid-js"
 
 export interface UseOverlayModeOptions {
   isEnabled?: boolean
 }
 
-export const useOverlayMode = (options?: UseOverlayModeOptions): void => {
-  const isEnabled = options?.isEnabled ?? false
-
-  useEffect(() => {
+export const useOverlayMode = (options?: UseOverlayModeOptions | (() => UseOverlayModeOptions)): void => {
+  createEffect(() => {
+    const resolved = typeof options === "function" ? options() : options
+    const isEnabled = resolved?.isEnabled ?? false
     const body = document.body
-    if (!body) {
-      return
-    }
+    if (!body) return
 
     if (isEnabled) {
       body.classList.add("overlay-mode")
@@ -19,9 +17,8 @@ export const useOverlayMode = (options?: UseOverlayModeOptions): void => {
       body.classList.remove("overlay-mode")
     }
 
-    return () => {
-      // Ensure we always clean up the overlay mode when unmounting or toggling off
+    onCleanup(() => {
       body.classList.remove("overlay-mode")
-    }
-  }, [isEnabled])
+    })
+  })
 }
