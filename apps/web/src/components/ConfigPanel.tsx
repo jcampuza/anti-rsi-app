@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 import type { AntiRsiRendererApi } from "../hooks/useAntiRsiApi"
-import type { BreakConfig, AntiRsiConfig, AppearanceConfig } from "@antirsi/core"
+import type { BreakConfig, AntiRsiConfig, AppearanceConfig, WorkBreakConfig } from "@antirsi/core"
 import { Button } from "~/components/ui/Button"
 
 interface ConfigPanelProps {
@@ -11,22 +11,14 @@ interface ConfigPanelProps {
 
 export const ConfigPanel = ({ config, api, onReset }: ConfigPanelProps): React.JSX.Element => {
   const [miniConfig, setMiniConfig] = useState<BreakConfig>(() => ({ ...config.mini }))
-  const [workConfig, setWorkConfig] = useState({
-    intervalSeconds: config.work.intervalSeconds,
-    durationSeconds: config.work.durationSeconds,
-    postponeSeconds: config.work.postponeSeconds,
-  })
+  const [workConfig, setWorkConfig] = useState<WorkBreakConfig>(() => ({ ...config.work }))
   const [appearanceConfig, setAppearanceConfig] = useState<AppearanceConfig>(() => ({
     ...config.appearance,
   }))
 
   useEffect(() => {
     setMiniConfig({ ...config.mini })
-    setWorkConfig({
-      intervalSeconds: config.work.intervalSeconds,
-      durationSeconds: config.work.durationSeconds,
-      postponeSeconds: config.work.postponeSeconds,
-    })
+    setWorkConfig({ ...config.work })
     setAppearanceConfig({ ...config.appearance })
   }, [config])
 
@@ -48,9 +40,28 @@ export const ConfigPanel = ({ config, api, onReset }: ConfigPanelProps): React.J
       <section className="flex flex-col gap-5 rounded-2xl border border-white/[0.08] bg-card p-5 text-foreground shadow-[0_18px_40px_rgba(0,0,0,0.22)] ring-1 ring-white/[0.04]">
         <div className="space-y-1">
           <h3 className="text-lg font-semibold">Timing Overrides</h3>
-          <p className="text-sm text-muted-foreground">Adjust when breaks start and how long they last.</p>
+          <p className="text-sm text-muted-foreground">
+            Adjust when breaks start and how long they last.
+          </p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <label className="flex items-start gap-3 rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-4 text-sm text-muted-foreground sm:col-span-2 lg:col-span-3">
+            <input
+              className="mt-0.5 h-4 w-4 accent-[var(--color-accent)]"
+              type="checkbox"
+              checked={workConfig.enabled}
+              onChange={(event) =>
+                setWorkConfig({
+                  ...workConfig,
+                  enabled: event.target.checked,
+                })
+              }
+            />
+            <span className="space-y-1">
+              <span className="block font-semibold text-foreground">Enable work breaks</span>
+              <span className="block">Turn this off to keep only micro pauses active.</span>
+            </span>
+          </label>
           <label className="flex flex-col gap-1 text-sm text-muted-foreground">
             Micro Pause Interval (s)
             <input
@@ -87,6 +98,7 @@ export const ConfigPanel = ({ config, api, onReset }: ConfigPanelProps): React.J
               className="input"
               type="number"
               min={60}
+              disabled={!workConfig.enabled}
               value={workConfig.intervalSeconds}
               onChange={(event) =>
                 setWorkConfig({
@@ -102,6 +114,7 @@ export const ConfigPanel = ({ config, api, onReset }: ConfigPanelProps): React.J
               className="input"
               type="number"
               min={60}
+              disabled={!workConfig.enabled}
               value={workConfig.durationSeconds}
               onChange={(event) =>
                 setWorkConfig({
@@ -117,6 +130,7 @@ export const ConfigPanel = ({ config, api, onReset }: ConfigPanelProps): React.J
               className="input"
               type="number"
               min={60}
+              disabled={!workConfig.enabled}
               value={workConfig.postponeSeconds}
               onChange={(event) =>
                 setWorkConfig({

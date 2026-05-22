@@ -76,16 +76,18 @@ function App() {
                 breakType="mini"
                 pendingSeconds={pendingMini}
               />
-              <BreakStatusCard
-                config={config}
-                snapshot={snapshot}
-                breakType="work"
-                pendingSeconds={pendingWork}
-              />
+              {config.work.enabled ? (
+                <BreakStatusCard
+                  config={config}
+                  snapshot={snapshot}
+                  breakType="work"
+                  pendingSeconds={pendingWork}
+                />
+              ) : null}
             </section>
 
             <div className="mt-2 border-t border-white/[0.08] pt-6">
-              <HeaderActions api={api} snapshot={snapshot} />
+              <HeaderActions api={api} config={config} snapshot={snapshot} />
             </div>
 
             {import.meta.env.DEV ? <Versions /> : null}

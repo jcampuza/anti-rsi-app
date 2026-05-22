@@ -6,6 +6,9 @@ export const BreakConfigSchema = Schema.Struct({
 })
 
 export const WorkBreakConfigSchema = Schema.Struct({
+  enabled: Schema.optionalWith(Schema.Boolean, {
+    default: () => true,
+  }),
   intervalSeconds: Schema.Number.pipe(Schema.positive()),
   durationSeconds: Schema.Number.pipe(Schema.positive()),
   postponeSeconds: Schema.Number.pipe(Schema.positive()),

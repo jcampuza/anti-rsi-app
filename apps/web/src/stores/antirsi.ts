@@ -25,10 +25,14 @@ const processStream = mainEventStream.pipe(
   Stream.map((payload) => (payload.type === "init" ? payload.processes : payload.list)),
 )
 
-export const configAtom: ReturnType<typeof Atom.make<AntiRsiConfig, never>> =
-  Atom.make(configStream)
+export const configAtom: ReturnType<typeof Atom.make<AntiRsiConfig, never>> = Atom.make(
+  configStream,
+).pipe(Atom.keepAlive)
 
-export const snapshotAtom: ReturnType<typeof Atom.make<AntiRsiSnapshot, never>> =
-  Atom.make(snapshotStream)
+export const snapshotAtom: ReturnType<typeof Atom.make<AntiRsiSnapshot, never>> = Atom.make(
+  snapshotStream,
+).pipe(Atom.keepAlive)
 
-export const processAtom: ReturnType<typeof Atom.make<string[], never>> = Atom.make(processStream)
+export const processAtom: ReturnType<typeof Atom.make<string[], never>> = Atom.make(
+  processStream,
+).pipe(Atom.keepAlive)

@@ -1,44 +1,48 @@
 import { spawn } from "node:child_process"
-import { fileURLToPath } from "node:url"
-import { dirname, resolve } from "node:path"
 
 const rendererPort = Number(process.env.ELECTRON_RENDERER_PORT ?? 5733)
 const devServerUrl = process.env.VITE_DEV_SERVER_URL ?? `http://localhost:${rendererPort}`
-const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 
-const web = spawn("bun", ["run", "dev"], {
-  cwd: resolve(rootDir, "apps/web"),
-  env: { ...process.env, PORT: String(rendererPort) },
-  stdio: "inherit",
-})
+const MODES = {
+  dev: [
+    "run",
+    "dev",
+    "--ui=tui",
+    "--filter=@antirsi/web",
+    "--filter=@antirsi/desktop",
+    "--parallel",
+  ],
+  "dev:web": ["run", "dev", "--filter=@antirsi/web"],
+  "dev:desktop": ["run", "dev", "--filter=@antirsi/web", "--filter=@antirsi/desktop", "--parallel"],
+} as const
 
-const desktop = spawn("bun", ["run", "dev"], {
-  cwd: resolve(rootDir, "apps/desktop"),
+type DevMode = keyof typeof MODES
+
+const requestedMode = process.argv[2] ?? "dev"
+
+if (!(requestedMode in MODES)) {
+  console.error(`Unknown dev mode: ${requestedMode}`)
+  console.error(`Expected one of: ${Object.keys(MODES).join(", ")}`)
+  process.exit(1)
+}
+
+const mode = requestedMode as DevMode
+const child = spawn("turbo", MODES[mode], {
   env: {
     ...process.env,
     ELECTRON_RENDERER_PORT: String(rendererPort),
+    PORT: String(rendererPort),
     VITE_DEV_SERVER_URL: devServerUrl,
   },
   stdio: "inherit",
+  shell: process.platform === "win32",
 })
 
-let shuttingDown = false
-
-const shutdown = (code: number): void => {
-  if (shuttingDown) {
+child.on("exit", (code, signal) => {
+  if (signal) {
+    process.kill(process.pid, signal)
     return
   }
-  shuttingDown = true
-  web.kill("SIGTERM")
-  desktop.kill("SIGTERM")
-  process.exit(code)
-}
 
-for (const child of [web, desktop]) {
-  child.on("exit", (code) => {
-    shutdown(code ?? 0)
-  })
-}
-
-process.once("SIGINT", () => shutdown(130))
-process.once("SIGTERM", () => shutdown(143))
+  process.exit(code ?? 0)
+})

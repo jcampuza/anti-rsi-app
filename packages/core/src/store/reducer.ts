@@ -41,6 +41,7 @@ const applyConfigPatch = (
 const configsEqual = (left: AntiRsiConfig, right: AntiRsiConfig): boolean =>
   left.mini.intervalSeconds === right.mini.intervalSeconds &&
   left.mini.durationSeconds === right.mini.durationSeconds &&
+  left.work.enabled === right.work.enabled &&
   left.work.intervalSeconds === right.work.intervalSeconds &&
   left.work.durationSeconds === right.work.durationSeconds &&
   left.work.postponeSeconds === right.work.postponeSeconds &&
@@ -51,6 +52,7 @@ const configsEqual = (left: AntiRsiConfig, right: AntiRsiConfig): boolean =>
 const shouldResetStateForConfigChange = (current: AntiRsiConfig, next: AntiRsiConfig): boolean =>
   current.mini.intervalSeconds !== next.mini.intervalSeconds ||
   current.mini.durationSeconds !== next.mini.durationSeconds ||
+  current.work.enabled !== next.work.enabled ||
   current.work.intervalSeconds !== next.work.intervalSeconds ||
   current.work.durationSeconds !== next.work.durationSeconds ||
   current.work.postponeSeconds !== next.work.postponeSeconds ||
@@ -124,6 +126,10 @@ const leaveMiniBreak = (state: StoreState): StoreState => {
 }
 
 const enterWorkBreak = (state: StoreState, naturalContinuation: boolean): StoreState => {
+  if (!state.config.work.enabled) {
+    return state
+  }
+
   const timings = {
     ...state.timings,
     workElapsed: state.config.work.intervalSeconds,
@@ -154,6 +160,10 @@ const resetTimings = (state: StoreState): StoreState => ({
 })
 
 const postponeWorkBreak = (state: StoreState): StoreState => {
+  if (!state.config.work.enabled) {
+    return state
+  }
+
   const workElapsed = clamp(
     state.config.work.intervalSeconds - state.config.work.postponeSeconds,
     0,
@@ -208,7 +218,12 @@ const tick = (state: StoreState, action: TickAction): StoreState => {
       timings.miniTaking = clampTo(timings.miniTaking + delta, state.config.mini.durationSeconds)
     }
 
-    timings.workElapsed = clampTo(timings.workElapsed + delta, state.config.work.intervalSeconds)
+    if (state.config.work.enabled) {
+      timings.workElapsed = clampTo(timings.workElapsed + delta, state.config.work.intervalSeconds)
+    } else {
+      timings.workElapsed = 0
+      timings.workTaking = 0
+    }
     timings.workTaking = 0
 
     const naturalReset = shouldResetMiniFromNaturalBreak(action.idleSeconds, state.config)
@@ -216,7 +231,10 @@ const tick = (state: StoreState, action: TickAction): StoreState => {
       next.timings = resetMiniTimersFromNaturalBreak(timings, state.config)
     }
 
-    if (next.timings.workElapsed >= state.config.work.intervalSeconds) {
+    if (
+      state.config.work.enabled &&
+      next.timings.workElapsed >= state.config.work.intervalSeconds
+    ) {
       return enterWorkBreak({ ...next, timings: next.timings }, false)
     }
 
@@ -228,14 +246,19 @@ const tick = (state: StoreState, action: TickAction): StoreState => {
   }
 
   if (state.status === "in-mini") {
-    timings.workElapsed = clampTo(timings.workElapsed + delta, state.config.work.intervalSeconds)
+    if (state.config.work.enabled) {
+      timings.workElapsed = clampTo(timings.workElapsed + delta, state.config.work.intervalSeconds)
+    } else {
+      timings.workElapsed = 0
+      timings.workTaking = 0
+    }
     if (action.idleSeconds < 1) {
       timings.miniTaking = 0
     } else {
       timings.miniTaking = clampTo(timings.miniTaking + delta, state.config.mini.durationSeconds)
     }
 
-    if (timings.workElapsed >= state.config.work.intervalSeconds) {
+    if (state.config.work.enabled && timings.workElapsed >= state.config.work.intervalSeconds) {
       return enterWorkBreak({ ...next, timings }, false)
     }
 

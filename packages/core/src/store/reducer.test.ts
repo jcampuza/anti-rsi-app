@@ -69,3 +69,42 @@ describe("reducer config updates", () => {
     expect(nextState.config.mini.intervalSeconds).toBe(defaultConfig().mini.intervalSeconds + 30)
   })
 })
+
+describe("work break disabling", () => {
+  it("does not start automatic work breaks when work breaks are disabled", () => {
+    const config = defaultConfig()
+    const initialState = createInitialState({
+      work: {
+        ...config.work,
+        enabled: false,
+      },
+    })
+
+    const nextState = reducer(initialState, {
+      type: "TICK",
+      idleSeconds: 0,
+      dtSeconds: config.work.intervalSeconds + 1,
+    })
+
+    expect(nextState.status).toBe("in-mini")
+    expect(nextState.timings.workElapsed).toBe(0)
+    expect(nextState.timings.workTaking).toBe(0)
+  })
+
+  it("does not start manual work breaks when work breaks are disabled", () => {
+    const config = defaultConfig()
+    const initialState = createInitialState({
+      work: {
+        ...config.work,
+        enabled: false,
+      },
+    })
+
+    const nextState = reducer(initialState, {
+      type: "START_WORK_BREAK",
+      naturalContinuation: false,
+    })
+
+    expect(nextState).toBe(initialState)
+  })
+})

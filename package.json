@@ -8,9 +8,9 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "bun scripts/dev-runner.ts",
-    "dev:web": "bun --cwd apps/web run dev",
-    "dev:desktop": "bun scripts/dev-runner.ts",
+    "dev": "bun scripts/dev-runner.ts dev",
+    "dev:web": "bun scripts/dev-runner.ts dev:web",
+    "dev:desktop": "bun scripts/dev-runner.ts dev:desktop",
     "build": "turbo run build",
     "build:web": "turbo run build --filter=@antirsi/web",
     "build:desktop": "turbo run build --filter=@antirsi/core --filter=@antirsi/contracts --filter=@antirsi/web --filter=@antirsi/desktop",

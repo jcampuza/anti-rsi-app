@@ -1,20 +1,23 @@
 import type { AntiRsiRendererApi } from "../hooks/useAntiRsiApi"
-import type { AntiRsiSnapshot } from "@antirsi/core"
+import type { AntiRsiConfig, AntiRsiSnapshot } from "@antirsi/core"
 import { Button } from "~/components/ui/Button"
 
 interface HeaderActionsProps {
   api: AntiRsiRendererApi
+  config: AntiRsiConfig
   snapshot: AntiRsiSnapshot
   disabled?: boolean
 }
 
 export const HeaderActions = ({
   api,
+  config,
   snapshot,
   disabled = false,
 }: HeaderActionsProps): React.JSX.Element => {
   const isActionDisabled = disabled
   const isPaused = snapshot.paused
+  const areWorkBreaksEnabled = config.work.enabled
 
   const handleTriggerWorkBreak = (): void => {
     api.dispatch({ type: "START_WORK_BREAK", naturalContinuation: false }).catch((error) => {
@@ -54,14 +57,16 @@ export const HeaderActions = ({
 
   return (
     <div className="flex flex-wrap justify-end gap-3 app-region-no-drag">
-      <Button
-        type="button"
-        variant="primary"
-        onClick={handleTriggerWorkBreak}
-        disabled={isActionDisabled}
-      >
-        Start Work Break
-      </Button>
+      {areWorkBreaksEnabled ? (
+        <Button
+          type="button"
+          variant="primary"
+          onClick={handleTriggerWorkBreak}
+          disabled={isActionDisabled}
+        >
+          Start Work Break
+        </Button>
+      ) : null}
       <Button
         type="button"
         variant="secondary"
@@ -70,14 +75,16 @@ export const HeaderActions = ({
       >
         Micro Pause
       </Button>
-      <Button
-        type="button"
-        variant="secondary"
-        onClick={handlePostponeWorkBreak}
-        disabled={isActionDisabled}
-      >
-        Postpone Work Break
-      </Button>
+      {areWorkBreaksEnabled ? (
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={handlePostponeWorkBreak}
+          disabled={isActionDisabled}
+        >
+          Postpone Work Break
+        </Button>
+      ) : null}
       <Button type="button" variant="secondary" onClick={handleTogglePause}>
         {isPaused ? "Resume Timers" : "Pause Timers"}
       </Button>
