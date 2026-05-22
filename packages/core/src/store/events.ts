@@ -18,6 +18,24 @@ const breakTypeForState = (state: AntiRsiState): BreakType | undefined => {
   return undefined
 }
 
+/** User/command-driven timing changes must bypass throttled status-update broadcasts. */
+const shouldEmitTimingsReset = (
+  action: Action,
+  prevSnapshot: AntiRsiSnapshot,
+  nextSnapshot: AntiRsiSnapshot,
+): boolean => {
+  switch (action.type) {
+    case "RESET_TIMINGS":
+    case "POSTPONE_WORK_BREAK":
+    case "RESET_CONFIG":
+      return true
+    case "SET_CONFIG":
+      return !snapshotsEqual(prevSnapshot, nextSnapshot)
+    default:
+      return false
+  }
+}
+
 const snapshotsEqual = (prev: AntiRsiSnapshot, next: AntiRsiSnapshot): boolean => {
   if (prev.state !== next.state) return false
   if (prev.lastIdleSeconds !== next.lastIdleSeconds) return false
@@ -75,6 +93,10 @@ export const deriveEvents = (
     if (breakType) {
       events.push({ type: "break-update", breakType })
     }
+  }
+
+  if (shouldEmitTimingsReset(action, prevSnapshot, nextSnapshot)) {
+    events.push({ type: "timings-reset" })
   }
 
   events.push({ type: "status-update" })

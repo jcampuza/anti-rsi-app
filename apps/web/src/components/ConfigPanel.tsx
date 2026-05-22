@@ -1,29 +1,37 @@
-import type { AntiRsiConfig, AppearanceConfig, BreakConfig, WorkBreakConfig } from "@antirsi/core"
-import { createEffect, createSignal, type Component } from "solid-js"
-import { type AntiRsiRendererApi } from "~/context/antirsi"
-import { Button } from "~/components/ui/Button"
+import type {
+  AntiRsiConfig,
+  AppearanceConfig,
+  BreakConfig,
+  WorkBreakConfig,
+} from "@antirsi/core";
+import { createEffect, createSignal, type Component } from "solid-js";
+import { type AntiRsiRendererApi } from "~/context/antirsi";
+import { Button } from "~/components/ui/Button";
 
 interface ConfigPanelProps {
-  config: AntiRsiConfig
-  api: AntiRsiRendererApi
-  onReset: () => void
+  config: AntiRsiConfig;
+  api: AntiRsiRendererApi;
+  onReset: () => void;
   class?: string;
 }
 
 export const ConfigPanel: Component<ConfigPanelProps> = (props) => {
-
-
-  const [miniConfig, setMiniConfig] = createSignal<BreakConfig>({ ...props.config.mini })
-  const [workConfig, setWorkConfig] = createSignal<WorkBreakConfig>({ ...props.config.work })
-  const [appearanceConfig, setAppearanceConfig] = createSignal<AppearanceConfig>({
-    ...props.config.appearance,
-  })
+  const [miniConfig, setMiniConfig] = createSignal<BreakConfig>({
+    ...props.config.mini,
+  });
+  const [workConfig, setWorkConfig] = createSignal<WorkBreakConfig>({
+    ...props.config.work,
+  });
+  const [appearanceConfig, setAppearanceConfig] =
+    createSignal<AppearanceConfig>({
+      ...props.config.appearance,
+    });
 
   createEffect(() => {
-    setMiniConfig({ ...props.config.mini })
-    setWorkConfig({ ...props.config.work })
-    setAppearanceConfig({ ...props.config.appearance })
-  })
+    setMiniConfig({ ...props.config.mini });
+    setWorkConfig({ ...props.config.work });
+    setAppearanceConfig({ ...props.config.appearance });
+  });
 
   const handleApply = (): void => {
     props.api
@@ -35,8 +43,10 @@ export const ConfigPanel: Component<ConfigPanelProps> = (props) => {
           appearance: appearanceConfig(),
         },
       })
-      .catch((error) => console.error("[AntiRSI] Failed to update config", error))
-  }
+      .catch((error) =>
+        console.error("[AntiRSI] Failed to update config", error),
+      );
+  };
 
   return (
     <div class={`app-region-no-drag flex flex-col gap-5 ${props.class}`}>
@@ -61,8 +71,12 @@ export const ConfigPanel: Component<ConfigPanelProps> = (props) => {
               }
             />
             <span class="space-y-1">
-              <span class="block font-semibold text-foreground">Enable work breaks</span>
-              <span class="block">Turn this off to keep only micro pauses active.</span>
+              <span class="block font-semibold text-foreground">
+                Enable work breaks
+              </span>
+              <span class="block">
+                Turn this off to keep only micro pauses active.
+              </span>
             </span>
           </label>
           <label class="flex flex-col gap-1 text-sm text-muted-foreground">
@@ -75,7 +89,10 @@ export const ConfigPanel: Component<ConfigPanelProps> = (props) => {
               onInput={(event) =>
                 setMiniConfig({
                   ...miniConfig(),
-                  intervalSeconds: Number.parseInt(event.currentTarget.value, 10),
+                  intervalSeconds: Number.parseInt(
+                    event.currentTarget.value,
+                    10,
+                  ),
                 })
               }
             />
@@ -90,7 +107,10 @@ export const ConfigPanel: Component<ConfigPanelProps> = (props) => {
               onInput={(event) =>
                 setMiniConfig({
                   ...miniConfig(),
-                  durationSeconds: Number.parseInt(event.currentTarget.value, 10),
+                  durationSeconds: Number.parseInt(
+                    event.currentTarget.value,
+                    10,
+                  ),
                 })
               }
             />
@@ -106,7 +126,10 @@ export const ConfigPanel: Component<ConfigPanelProps> = (props) => {
               onInput={(event) =>
                 setWorkConfig({
                   ...workConfig(),
-                  intervalSeconds: Number.parseInt(event.currentTarget.value, 10),
+                  intervalSeconds: Number.parseInt(
+                    event.currentTarget.value,
+                    10,
+                  ),
                 })
               }
             />
@@ -122,7 +145,10 @@ export const ConfigPanel: Component<ConfigPanelProps> = (props) => {
               onInput={(event) =>
                 setWorkConfig({
                   ...workConfig(),
-                  durationSeconds: Number.parseInt(event.currentTarget.value, 10),
+                  durationSeconds: Number.parseInt(
+                    event.currentTarget.value,
+                    10,
+                  ),
                 })
               }
             />
@@ -138,7 +164,10 @@ export const ConfigPanel: Component<ConfigPanelProps> = (props) => {
               onInput={(event) =>
                 setWorkConfig({
                   ...workConfig(),
-                  postponeSeconds: Number.parseInt(event.currentTarget.value, 10),
+                  postponeSeconds: Number.parseInt(
+                    event.currentTarget.value,
+                    10,
+                  ),
                 })
               }
             />
@@ -163,9 +192,12 @@ export const ConfigPanel: Component<ConfigPanelProps> = (props) => {
             }
           />
           <span class="space-y-1">
-            <span class="block font-semibold text-foreground">Translucent windows</span>
+            <span class="block font-semibold text-foreground">
+              Translucent windows
+            </span>
             <span class="block">
-              Apply a subtle window translucency for the main desktop and break windows.
+              Apply a subtle window translucency for the main desktop and break
+              windows.
             </span>
           </span>
         </label>
@@ -180,5 +212,5 @@ export const ConfigPanel: Component<ConfigPanelProps> = (props) => {
         </Button>
       </div>
     </div>
-  )
-}
+  );
+};

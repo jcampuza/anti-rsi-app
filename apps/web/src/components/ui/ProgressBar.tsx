@@ -31,7 +31,7 @@ export const ProgressBar: Component<ProgressBarProps> = (props) => {
         class="progress-fill"
         style={{
           width: `${percent()}%`,
-          "transition-duration": `${Math.max(local.animationMs ?? 600, 0)}ms`,
+          "transition-duration": `${Math.max(local.animationMs ?? 50, 0)}ms`,
         }}
       />
     </div>

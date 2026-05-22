@@ -32,6 +32,7 @@ export type AntiRsiEvent =
   | { type: "work-break-start"; naturalContinuation: boolean }
   | { type: "break-update"; breakType: BreakType }
   | { type: "break-end"; breakType: BreakType }
+  | { type: "timings-reset" }
   | { type: "status-update" }
   | { type: "paused" }
   | { type: "resumed" }
