@@ -17,7 +17,7 @@
     "@effect/platform": "^0.94.0",
     "@effect/platform-node": "^0.104.0",
     "effect": "^3.19.13",
-    "electron": "^40.8.0"
+    "electron": "^41.5.0"
   },
   "devDependencies": {
     "@types/node": "^22.19.3",

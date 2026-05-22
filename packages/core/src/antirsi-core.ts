@@ -45,6 +45,7 @@ const mergeConfig = (override?: Partial<AntiRsiConfig>): AntiRsiConfig => {
       durationSeconds: 13,
     },
     work: {
+      enabled: true,
       intervalSeconds: 50 * 60,
       durationSeconds: 8 * 60,
       postponeSeconds: 10 * 60,

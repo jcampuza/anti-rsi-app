@@ -32,6 +32,7 @@ const breakConfigsEqual = (a: AntiRsiConfig['mini'], b: AntiRsiConfig['mini']): 
   a.intervalSeconds === b.intervalSeconds && a.durationSeconds === b.durationSeconds;
 
 const workConfigsEqual = (a: AntiRsiConfig['work'], b: AntiRsiConfig['work']): boolean =>
+  a.enabled === b.enabled &&
   a.intervalSeconds === b.intervalSeconds &&
   a.durationSeconds === b.durationSeconds &&
   a.postponeSeconds === b.postponeSeconds;
