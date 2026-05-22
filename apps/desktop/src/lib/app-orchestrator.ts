@@ -1,10 +1,10 @@
-import { powerMonitor, BrowserWindow } from 'electron';
+import { powerMonitor } from 'electron';
 import { Effect, PubSub, Stream, Ref } from 'effect';
 import { type AntiRsiEvent, type AntiRsiSnapshot } from '@antirsi/core';
-import { IPC_EVENTS } from '@antirsi/contracts';
 import { ProcessService } from './process-service';
 import { AntiRsiEngine } from './antirsi-service';
 import { OverlayManager } from './overlay-manager';
+import { broadcastApiEvent } from './api-runtime';
 import { broadcastAntiRsiEvent } from './window-utils';
 
 export class AppOrchestrator extends Effect.Service<AppOrchestrator>()('AppOrchestrator', {
@@ -63,10 +63,7 @@ export class AppOrchestrator extends Effect.Service<AppOrchestrator>()('AppOrche
           yield* antiRsiService.removeInhibitor('process:zoom');
         }
 
-        // Broadcast to renderers via unified event.
-        BrowserWindow.getAllWindows().forEach((window) => {
-          window.webContents.send(IPC_EVENTS.EVENT, { type: 'processes-updated', list });
-        });
+        broadcastApiEvent({ type: 'processes-updated', list });
       });
 
     // Subscribe to process changes via Stream to manage inhibitors and update store.

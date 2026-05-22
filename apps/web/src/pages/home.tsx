@@ -7,15 +7,7 @@ import { Versions } from "~/components/Versions"
 import { buttonVariants } from "~/components/ui/Button"
 import { useAntiRsi } from "~/context/antirsi"
 
-const Header: Component = () => {
-  return (
-    <header class="app-region-no-drag flex items-center justify-end gap-6 text-foreground">
-      <A class={buttonVariants({ variant: "link" })} href="/config">
-        <Settings class="h-5 w-5" />
-      </A>
-    </header>
-  )
-}
+
 
 const HomePage: Component = () => {
   const antirsi = useAntiRsi()
@@ -47,7 +39,7 @@ const HomePage: Component = () => {
       }
     >
       <div class="app-region-drag flex min-h-[520px] flex-col gap-6 px-7 py-8">
-        <Header />
+
 
         <Show when={antirsi.snapshot()?.paused && antirsi.processes().length > 0}>
           <section class="rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3">

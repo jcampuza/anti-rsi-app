@@ -9,3 +9,6 @@ apps/*/dist
 apps/*/dist-electron
 apps/desktop/.electron-runtime
 artifacts
+# Exclude any *.tsbuildinfo file, including tsconfig.tsbuildinfo
+*.tsbuildinfo
+**/tsconfig.tsbuildinfo

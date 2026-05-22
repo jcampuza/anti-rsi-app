@@ -1,11 +1,11 @@
 import { app, shell, BrowserWindow, ipcMain } from 'electron';
 import { join } from 'path';
-import { IPC_EVENTS } from '@antirsi/contracts';
 import { createStore, selectConfig, StoreTag, type AntiRsiConfig } from '@antirsi/core';
 import { ConfigStore } from './lib/config-store';
 import { AntiRsiEngine } from './lib/antirsi-service';
-import { wireIpcHandlers } from './ipc';
 import { ProcessService } from './lib/process-service';
+import { broadcastApiEvent, ensureApiServer, stopApiServer } from './lib/api-runtime';
+import { configureRendererContentSecurityPolicy } from './lib/content-security-policy';
 import { ensureRendererServer, stopRendererServer } from './lib/renderer-runtime';
 import { loadRenderer, resolveResourcePath } from './lib/window-utils';
 import { ApplicationMenu, ApplicationMenuCallbacksTag } from './lib/application-menu';
@@ -66,7 +66,7 @@ function createMainWindow(): void {
     title: appDisplayName,
     autoHideMenuBar: true,
     titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: 16, y: 18 },
+    trafficLightPosition: { x: 8, y: 8 },
     webPreferences: {
       preload: join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -131,7 +131,8 @@ function createMainWindow(): void {
   });
 
   writeAppLog('main', 'Loading renderer', {
-    rendererBaseUrl: process.env['ANTIRSI_RENDERER_URL'] ?? process.env['VITE_DEV_SERVER_URL'] ?? null,
+    rendererBaseUrl:
+      process.env['ANTIRSI_RENDERER_URL'] ?? process.env['VITE_DEV_SERVER_URL'] ?? null,
     route: null,
   });
   loadRenderer(mainWindow);
@@ -236,10 +237,7 @@ const mainProgram = Effect.scoped(
           yield* Stream.fromQueue(subscription).pipe(
             Stream.runForEach(({ config }) =>
               Effect.gen(function* () {
-                // Broadcast to windows
-                BrowserWindow.getAllWindows().forEach((window) => {
-                  window.webContents.send(IPC_EVENTS.EVENT, { type: 'config-changed', config });
-                });
+                broadcastApiEvent({ type: 'config-changed', config });
                 applyAllWindowAppearance(config);
                 // Persist to disk
                 yield* configStore.save(config);
@@ -270,8 +268,6 @@ const mainProgram = Effect.scoped(
     );
     yield* Effect.forkScoped(Layer.launch(ApplicationMenuLive));
 
-    yield* wireIpcHandlers(store);
-
     yield* Effect.sync(() => {
       createMainWindow();
     });
@@ -301,6 +297,10 @@ const rootProgram = Effect.scoped(
     // Gate all initialization on Electron readiness.
     yield* electronApp.whenReady;
     yield* Effect.promise(() => ensureRendererServer(__dirname));
+    yield* Effect.promise(async () => {
+      const apiBaseUrl = await ensureApiServer(store);
+      configureRendererContentSecurityPolicy(apiBaseUrl);
+    });
     yield* Effect.sync(() => {
       configureAppLogging();
       configureAppIdentity();
@@ -310,6 +310,7 @@ const rootProgram = Effect.scoped(
     });
     yield* electronApp.onScoped('will-quit', () => {
       void stopRendererServer();
+      void stopApiServer();
     });
 
     // Global Electron listeners (managed by scope finalizers).

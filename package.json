@@ -13,14 +13,13 @@
     "dev:desktop": "bun scripts/dev-runner.ts dev:desktop",
     "build": "turbo run build",
     "build:web": "turbo run build --filter=@antirsi/web",
-    "build:desktop": "turbo run build --filter=@antirsi/core --filter=@antirsi/contracts --filter=@antirsi/web --filter=@antirsi/desktop",
+    "build:desktop": "turbo run build --filter=@antirsi/core --filter=@antirsi/contracts --filter=@antirsi/server --filter=@antirsi/web --filter=@antirsi/desktop",
     "start:desktop": "turbo run start --filter=@antirsi/desktop",
     "typecheck": "tsc --noEmit -p tsconfig.scripts.json && turbo run typecheck",
     "lint": "eslint --cache .",
     "test": "turbo run test",
     "prepare": "effect-language-service patch",
-    "dist:desktop:artifact": "bun scripts/build-desktop-artifact.ts",
-    "dist:desktop:mac": "bun scripts/build-desktop-artifact.ts --platform mac",
+    "package": "bun scripts/build-desktop-artifact.ts --platform mac",
     "format": "prettier --write ."
   },
   "devDependencies": {

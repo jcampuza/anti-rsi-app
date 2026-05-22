@@ -7,17 +7,7 @@ export const IPC_EVENTS = {
   PROCESSES_UPDATE: "antirsi:processes-update",
 } as const
 
-// Renderer -> Main process actions
-export const IPC_ACTIONS = {
-  GET_SNAPSHOT: "antirsi:get-snapshot",
-  GET_CONFIG: "antirsi:get-config",
-  GET_PROCESSES: "antirsi:get-processes",
-  SUBSCRIBE_ALL: "antirsi:subscribe-all",
-  COMMAND: "antirsi:command",
-} as const
-
 export type IpcEvent = (typeof IPC_EVENTS)[keyof typeof IPC_EVENTS]
-export type IpcAction = (typeof IPC_ACTIONS)[keyof typeof IPC_ACTIONS]
 
 export type MainEvent =
   | { type: "antirsi"; event: AntiRsiEvent; snapshot: AntiRsiSnapshot }

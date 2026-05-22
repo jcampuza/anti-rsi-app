@@ -24,6 +24,7 @@
       "dependencies": {
         "@antirsi/contracts": "workspace:*",
         "@antirsi/core": "workspace:*",
+        "@antirsi/server": "workspace:*",
         "@effect/platform": "^0.94.0",
         "@effect/platform-node": "^0.104.0",
         "effect": "^3.19.13",
@@ -32,6 +33,18 @@
       "devDependencies": {
         "@types/node": "^22.19.3",
         "wait-on": "^8.0.5",
+      },
+    },
+    "apps/server": {
+      "name": "@antirsi/server",
+      "dependencies": {
+        "@antirsi/contracts": "workspace:*",
+        "@antirsi/core": "workspace:*",
+        "@hono/node-server": "^2.0.3",
+        "hono": "^4.12.21",
+      },
+      "devDependencies": {
+        "@types/node": "^22.19.3",
       },
     },
     "apps/web": {
@@ -70,6 +83,8 @@
     "@antirsi/core": ["@antirsi/core@workspace:packages/core"],
 
     "@antirsi/desktop": ["@antirsi/desktop@workspace:apps/desktop"],
+
+    "@antirsi/server": ["@antirsi/server@workspace:apps/server"],
 
     "@antirsi/web": ["@antirsi/web@workspace:apps/web"],
 
@@ -216,6 +231,8 @@
     "@hapi/tlds": ["@hapi/tlds@1.1.6", "", {}, "sha512-xdi7A/4NZokvV0ewovme3aUO5kQhW9pQ2YD1hRqZGhhSi5rBv4usHYidVocXSi9eihYsznZxLtAiEYYUL6VBGw=="],
 
     "@hapi/topo": ["@hapi/topo@6.0.2", "", { "dependencies": { "@hapi/hoek": "^11.0.2" } }, "sha512-KR3rD5inZbGMrHmgPxsJ9dbi6zEK+C3ZwUwTa+eMwWLz7oijWUTWD2pMSNNYJAU6Qq+65NkxXjqHr/7LM2Xkqg=="],
+
+    "@hono/node-server": ["@hono/node-server@2.0.3", "", { "peerDependencies": { "hono": "^4" } }, "sha512-a0jV+/HRe3G5zjFID3zObAQFdkl6zpxTuqktdDDXS3MJKcrZIkB8OkLpNBlY/WXFqv2HF4a0takPej+aNFczWA=="],
 
     "@humanfs/core": ["@humanfs/core@0.19.1", "", {}, "sha512-5DyQ4+1JEUzejeK1JGICcideyfUbGixgS9jNgex5nqkW+cY7WZhxBigmieN5Qnw9ZosSNVC9KQKyb+GUaGyKUA=="],
 
@@ -750,6 +767,8 @@
     "has-tostringtag": ["has-tostringtag@1.0.2", "", { "dependencies": { "has-symbols": "1.1.0" } }, "sha512-NqADB8VjPFLM2V0VvHUewwwsw0ZWBaIdgo+ieHtK3hasLz4qeCRjYcqfB6AQrBggRKppKF8L52/VqdVsO47Dlw=="],
 
     "hasown": ["hasown@2.0.2", "", { "dependencies": { "function-bind": "1.1.2" } }, "sha512-0hJU9SCPvmMzIBdZFqNPXWa6dqh7WdH0cII9y+CyS8rG3nL48Bclra9HmKhVVUHyPWNH5Y7xDwAB7bfgSjkUMQ=="],
+
+    "hono": ["hono@4.12.22", "", {}, "sha512-7fvVPbB92zNRsQke+uiRGwtTuef0tB2Dg4hWxYfFNvkQhIltWoyi0ONReM5LWA+jJWS3nfT5lTq+qbsIpX0IQw=="],
 
     "hookable": ["hookable@6.0.1", "", {}, "sha512-uKGyY8BuzN/a5gvzvA+3FVWo0+wUjgtfSdnmjtrOVwQCZPHpHDH2WRO3VZSOeluYrHoDCiXFffZXs8Dj1ULWtw=="],
 

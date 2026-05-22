@@ -1,15 +1,18 @@
 import type { AntiRsiConfig, AppearanceConfig, BreakConfig, WorkBreakConfig } from "@antirsi/core"
 import { createEffect, createSignal, type Component } from "solid-js"
-import type { AntiRsiRendererApi } from "~/context/antirsi"
+import { type AntiRsiRendererApi } from "~/context/antirsi"
 import { Button } from "~/components/ui/Button"
 
 interface ConfigPanelProps {
   config: AntiRsiConfig
   api: AntiRsiRendererApi
   onReset: () => void
+  class?: string;
 }
 
 export const ConfigPanel: Component<ConfigPanelProps> = (props) => {
+
+
   const [miniConfig, setMiniConfig] = createSignal<BreakConfig>({ ...props.config.mini })
   const [workConfig, setWorkConfig] = createSignal<WorkBreakConfig>({ ...props.config.work })
   const [appearanceConfig, setAppearanceConfig] = createSignal<AppearanceConfig>({
@@ -36,7 +39,7 @@ export const ConfigPanel: Component<ConfigPanelProps> = (props) => {
   }
 
   return (
-    <div class="app-region-no-drag flex flex-col gap-5">
+    <div class={`app-region-no-drag flex flex-col gap-5 ${props.class}`}>
       <section class="flex flex-col gap-5 rounded-2xl border border-white/[0.08] bg-card p-5 text-foreground shadow-[0_18px_40px_rgba(0,0,0,0.22)] ring-1 ring-white/[0.04]">
         <div class="space-y-1">
           <h3 class="text-lg font-semibold">Timing Overrides</h3>

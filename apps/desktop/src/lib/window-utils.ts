@@ -1,8 +1,9 @@
-import { BrowserWindow } from 'electron';
 import { join } from 'node:path';
+import type { BrowserWindow } from 'electron';
 import { type AntiRsiEvent, type AntiRsiSnapshot } from '@antirsi/core';
-import { IPC_EVENTS, type MainEvent } from '@antirsi/contracts';
+import type { MainEvent } from '@antirsi/contracts';
 
+import { broadcastApiEvent } from './api-runtime';
 import { buildRendererUrl } from './renderer-runtime';
 
 export { resolveResourcePath } from '../resource-path';
@@ -21,7 +22,5 @@ export const getPreloadPath = (): string => {
 
 export const broadcastAntiRsiEvent = (event: AntiRsiEvent, snapshot: AntiRsiSnapshot): void => {
   const payload: MainEvent = { type: 'antirsi', event, snapshot };
-  BrowserWindow.getAllWindows().forEach((window) => {
-    window.webContents.send(IPC_EVENTS.EVENT, payload);
-  });
+  broadcastApiEvent(payload);
 };

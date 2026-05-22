@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 @theme {
   --radius: 0.625rem;
@@ -79,7 +79,7 @@
   }
 
   #root {
-    @apply mx-auto min-h-screen w-full max-w-5xl px-4 py-4 sm:px-6 sm:py-6;
+    @apply mx-auto min-h-screen w-full max-w-5xl;
   }
 
   body.overlay-mode {
@@ -112,9 +112,7 @@
 
   .progress-fill {
     @apply h-full rounded-full transition-[width] ease-out motion-reduce:transition-none;
-    background:
-      linear-gradient(90deg, rgba(53, 83, 143, 0.95), rgba(126, 164, 255, 0.98)),
-      #7ea4ff;
+    background: linear-gradient(90deg, rgba(53, 83, 143, 0.95), rgba(126, 164, 255, 0.98)), #7ea4ff;
     box-shadow:
       0 0 18px rgba(126, 164, 255, 0.16),
       inset 0 1px 0 rgba(255, 255, 255, 0.2);

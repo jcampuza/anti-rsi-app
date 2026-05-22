@@ -13,6 +13,9 @@ const getWindowWithApi = (): WindowWithApi | undefined => {
  * True when running inside the Electron preload bridge.
  * The preload exposes `window.api` before any web code runs.
  */
-export const isElectron = getWindowWithApi()?.api?.antirsi !== undefined
+export const hasDesktopBridge = (): boolean => getWindowWithApi()?.api !== undefined
+
+/** @deprecated Use hasDesktopBridge */
+export const isElectron = hasDesktopBridge
 
 export const getDesktopWindowApi = (): AntiRsiWindowApi | undefined => getWindowWithApi()?.api
