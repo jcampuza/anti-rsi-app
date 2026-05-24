@@ -25,6 +25,16 @@ export class AppOrchestrator extends Effect.Service<AppOrchestrator>()(
         Effect.gen(function* () {
           const now = Date.now();
 
+          // Pause/resume must reach clients immediately (not via throttled status-update).
+          if (event.type === "paused") {
+            broadcastApiEvent({ type: "timers-paused", snapshot });
+            return;
+          }
+          if (event.type === "resumed") {
+            broadcastApiEvent({ type: "timers-resumed", snapshot });
+            return;
+          }
+
           if (event.type === "status-update") {
             const lastBroadcastAt = yield* Ref.get(lastStatusBroadcastAtRef);
             if (now - lastBroadcastAt < statusThrottleMs) {

@@ -40,7 +40,7 @@ const ConfigPage: Component = () => {
             </A>
           </div>
           <h1 class="text-3xl font-bold">Configuration</h1>
-          <p class="text-muted-foreground">Adjust your break timing and appearance preferences</p>
+          <p class="text-muted-foreground">Adjust your break timing preferences</p>
         </header>
 
         <ConfigPanel config={antirsi.config()!} api={antirsi.api} onReset={handleReset} />

@@ -3,36 +3,6 @@ import { defaultConfig } from "../antirsi-core"
 import { createInitialState, reducer } from "./reducer"
 
 describe("reducer config updates", () => {
-  it("preserves break progress when only appearance changes", () => {
-    const initialState = {
-      ...createInitialState(),
-      status: "in-mini" as const,
-      timings: {
-        miniElapsed: 240,
-        miniTaking: 6,
-        workElapsed: 1200,
-        workTaking: 0,
-      },
-      lastIdleSeconds: 2,
-      lastUpdatedSeconds: 1234,
-    }
-
-    const nextState = reducer(initialState, {
-      type: "SET_CONFIG",
-      config: {
-        appearance: {
-          translucentWindows: true,
-        },
-      },
-    })
-
-    expect(nextState.status).toBe(initialState.status)
-    expect(nextState.timings).toEqual(initialState.timings)
-    expect(nextState.lastIdleSeconds).toBe(initialState.lastIdleSeconds)
-    expect(nextState.lastUpdatedSeconds).toBe(initialState.lastUpdatedSeconds)
-    expect(nextState.config.appearance.translucentWindows).toBe(true)
-  })
-
   it("resets timings when break configuration changes", () => {
     const initialState = {
       ...createInitialState(),
@@ -106,5 +76,30 @@ describe("work break disabling", () => {
     })
 
     expect(nextState).toBe(initialState)
+  })
+})
+
+describe("natural idle breaks", () => {
+  it("does not advance interval timers while the user is idle", () => {
+    const config = defaultConfig()
+    const initialState = {
+      ...createInitialState(),
+      timings: {
+        miniElapsed: 30,
+        miniTaking: 0,
+        workElapsed: 120,
+        workTaking: 0,
+      },
+    }
+
+    const nextState = reducer(initialState, {
+      type: "TICK",
+      idleSeconds: config.mini.durationSeconds,
+      dtSeconds: 5,
+    })
+
+    expect(nextState.timings.miniElapsed).toBe(initialState.timings.miniElapsed)
+    expect(nextState.timings.workElapsed).toBe(initialState.timings.workElapsed)
+    expect(nextState.timings.miniTaking).toBe(5)
   })
 })

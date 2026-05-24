@@ -32,7 +32,6 @@ const applyConfigPatch = (
 ): AntiRsiConfig => ({
   mini: { ...current.mini, ...(patch.mini ?? {}) },
   work: { ...current.work, ...(patch.work ?? {}) },
-  appearance: { ...current.appearance, ...(patch.appearance ?? {}) },
   tickIntervalMs: patch.tickIntervalMs ?? current.tickIntervalMs,
   naturalBreakContinuationWindowSeconds:
     patch.naturalBreakContinuationWindowSeconds ?? current.naturalBreakContinuationWindowSeconds,
@@ -45,7 +44,6 @@ const configsEqual = (left: AntiRsiConfig, right: AntiRsiConfig): boolean =>
   left.work.intervalSeconds === right.work.intervalSeconds &&
   left.work.durationSeconds === right.work.durationSeconds &&
   left.work.postponeSeconds === right.work.postponeSeconds &&
-  left.appearance.translucentWindows === right.appearance.translucentWindows &&
   left.tickIntervalMs === right.tickIntervalMs &&
   left.naturalBreakContinuationWindowSeconds === right.naturalBreakContinuationWindowSeconds
 
@@ -211,18 +209,27 @@ const tick = (state: StoreState, action: TickAction): StoreState => {
 
   if (state.status === "normal") {
     const idleThreshold = state.config.mini.durationSeconds * 0.3
-    if (action.idleSeconds <= idleThreshold) {
+    const isIdleNaturalBreak = action.idleSeconds > idleThreshold
+
+    if (!isIdleNaturalBreak) {
       timings.miniElapsed = clampTo(timings.miniElapsed + delta, state.config.mini.intervalSeconds)
       timings.miniTaking = 0
+
+      if (state.config.work.enabled) {
+        timings.workElapsed = clampTo(
+          timings.workElapsed + delta,
+          state.config.work.intervalSeconds,
+        )
+      } else {
+        timings.workElapsed = 0
+        timings.workTaking = 0
+      }
     } else {
       timings.miniTaking = clampTo(timings.miniTaking + delta, state.config.mini.durationSeconds)
-    }
-
-    if (state.config.work.enabled) {
-      timings.workElapsed = clampTo(timings.workElapsed + delta, state.config.work.intervalSeconds)
-    } else {
-      timings.workElapsed = 0
-      timings.workTaking = 0
+      if (!state.config.work.enabled) {
+        timings.workElapsed = 0
+        timings.workTaking = 0
+      }
     }
     timings.workTaking = 0
 

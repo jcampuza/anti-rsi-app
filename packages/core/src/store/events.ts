@@ -5,7 +5,7 @@ import {
   type BreakType,
 } from "../antirsi-core"
 import { type Action } from "./actions"
-import { selectIsPaused, selectSnapshot } from "./selectors"
+import { selectTimersRunning, selectSnapshot } from "./selectors"
 import { type StoreState } from "./state"
 
 const breakTypeForState = (state: AntiRsiState): BreakType | undefined => {
@@ -41,6 +41,7 @@ const snapshotsEqual = (prev: AntiRsiSnapshot, next: AntiRsiSnapshot): boolean =
   if (prev.lastIdleSeconds !== next.lastIdleSeconds) return false
   if (prev.lastUpdatedSeconds !== next.lastUpdatedSeconds) return false
   if (prev.paused !== next.paused) return false
+  if (prev.timersRunning !== next.timersRunning) return false
   const prevTimings = prev.timings
   const nextTimings = next.timings
   return (
@@ -56,16 +57,16 @@ export const deriveEvents = (
   nextState: StoreState,
   action: Action,
 ): { events: AntiRsiEvent[]; snapshotChanged: boolean } => {
-  const prevPaused = selectIsPaused(prevState)
-  const nextPaused = selectIsPaused(nextState)
+  const prevTimersRunning = selectTimersRunning(prevState)
+  const nextTimersRunning = selectTimersRunning(nextState)
 
   const prevSnapshot = selectSnapshot(prevState)
   const nextSnapshot = selectSnapshot(nextState)
 
   const events: AntiRsiEvent[] = []
 
-  if (prevPaused !== nextPaused) {
-    events.push({ type: nextPaused ? "paused" : "resumed" })
+  if (prevTimersRunning !== nextTimersRunning) {
+    events.push({ type: nextTimersRunning ? "resumed" : "paused" })
   }
 
   if (prevSnapshot.state !== nextSnapshot.state) {

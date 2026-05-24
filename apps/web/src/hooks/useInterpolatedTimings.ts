@@ -9,7 +9,7 @@ interface InterpolatedTimings {
 }
 
 const SNAP_THRESHOLD_SECONDS = 2;
-const SMOOTHING_DURATION_MS = 300;
+const DISPLAY_UPDATE_INTERVAL_MS = 1000;
 
 export function useInterpolatedTimings(
   snapshot: Accessor<AntiRsiSnapshot | undefined>,
@@ -21,8 +21,8 @@ export function useInterpolatedTimings(
     workTaking: 0,
   });
 
-  // Refs to track RAF and current values without creating reactive dependencies
-  const rafIdRef = { current: undefined as number | undefined };
+  // Refs track timer state and current values without creating reactive dependencies.
+  const timeoutIdRef = { current: undefined as number | undefined };
   const runningRef = { current: false };
   const currentValuesRef = { current: { mini: 0, work: 0 } };
   const lastServerTakingRef = {
@@ -32,11 +32,7 @@ export function useInterpolatedTimings(
     current: {
       serverTimings: null as AntiRsiSnapshot["timings"] | null,
       serverReceivedAt: 0,
-      isPaused: false,
-      isSmoothing: false,
-      smoothingStartTime: 0,
-      smoothingFromMini: 0,
-      smoothingFromWork: 0,
+      timersRunning: true,
     },
   };
 
@@ -47,79 +43,56 @@ export function useInterpolatedTimings(
     currentValuesRef.current.work = vals.workElapsed;
   };
 
-  const startRaf = () => {
-    if (rafIdRef.current !== undefined) return;
-    runningRef.current = true;
+  const publishCurrentTimings = (now = Date.now(), force = false) => {
+    const state = serverStateRef.current;
+    if (!state.serverTimings) {
+      return;
+    }
 
-    const tick = () => {
-      if (!runningRef.current) return;
+    const elapsedSinceServer = state.timersRunning ? (now - state.serverReceivedAt) / 1000 : 0;
+    const newMini = state.serverTimings.miniElapsed + elapsedSinceServer;
+    const newWork = state.serverTimings.workElapsed + elapsedSinceServer;
 
-      const state = serverStateRef.current;
-      if (!state.serverTimings) {
-        rafIdRef.current = requestAnimationFrame(tick);
-        return;
-      }
-
-      const now = Date.now();
-      const elapsedSinceServer = (now - state.serverReceivedAt) / 1000;
-
-      let newMini: number;
-      let newWork: number;
-
-      if (state.isPaused) {
-        newMini = state.serverTimings.miniElapsed;
-        newWork = state.serverTimings.workElapsed;
-      } else if (state.isSmoothing) {
-        const smoothingProgress = Math.min(
-          (now - state.smoothingStartTime) / SMOOTHING_DURATION_MS,
-          1,
-        );
-        const targetMini = state.serverTimings.miniElapsed + elapsedSinceServer;
-        const targetWork = state.serverTimings.workElapsed + elapsedSinceServer;
-
-        newMini =
-          state.smoothingFromMini +
-          (targetMini - state.smoothingFromMini) * smoothingProgress;
-        newWork =
-          state.smoothingFromWork +
-          (targetWork - state.smoothingFromWork) * smoothingProgress;
-
-        if (smoothingProgress >= 1) {
-          state.isSmoothing = false;
-        }
-      } else {
-        newMini = state.serverTimings.miniElapsed + elapsedSinceServer;
-        newWork = state.serverTimings.workElapsed + elapsedSinceServer;
-      }
-
-      // Update ref and signal if changed
-      if (
-        Math.abs(newMini - currentValuesRef.current.mini) > 0.001 ||
-        Math.abs(newWork - currentValuesRef.current.work) > 0.001
-      ) {
-        currentValuesRef.current.mini = newMini;
-        currentValuesRef.current.work = newWork;
-        setInterpolated({
-          miniElapsed: newMini,
-          workElapsed: newWork,
-          miniTaking: state.serverTimings.miniTaking,
-          workTaking: state.serverTimings.workTaking,
-        });
-      }
-
-      if (runningRef.current) {
-        rafIdRef.current = requestAnimationFrame(tick);
-      }
-    };
-
-    rafIdRef.current = requestAnimationFrame(tick);
+    if (
+      force ||
+      Math.abs(newMini - currentValuesRef.current.mini) >= 0.5 ||
+      Math.abs(newWork - currentValuesRef.current.work) >= 0.5
+    ) {
+      currentValuesRef.current.mini = newMini;
+      currentValuesRef.current.work = newWork;
+      setInterpolated({
+        miniElapsed: newMini,
+        workElapsed: newWork,
+        miniTaking: state.serverTimings.miniTaking,
+        workTaking: state.serverTimings.workTaking,
+      });
+    }
   };
 
-  const stopRaf = () => {
+  const scheduleNextTick = () => {
+    if (!runningRef.current) {
+      return;
+    }
+
+    timeoutIdRef.current = window.setTimeout(() => {
+      timeoutIdRef.current = undefined;
+      publishCurrentTimings();
+      scheduleNextTick();
+    }, DISPLAY_UPDATE_INTERVAL_MS);
+  };
+
+  const startTimer = () => {
+    if (runningRef.current) return;
+    runningRef.current = true;
+    publishCurrentTimings(Date.now(), true);
+    scheduleNextTick();
+  };
+
+  const stopTimer = () => {
     runningRef.current = false;
-    if (rafIdRef.current !== undefined) {
-      cancelAnimationFrame(rafIdRef.current);
-      rafIdRef.current = undefined;
+    if (timeoutIdRef.current !== undefined) {
+      window.clearTimeout(timeoutIdRef.current);
+      timeoutIdRef.current = undefined;
     }
   };
 
@@ -128,9 +101,20 @@ export function useInterpolatedTimings(
     const snap = snapshot();
     if (!snap) return;
 
-    const serverTimings = snap.timings;
     const serverReceivedAt = Date.now();
-    const isPaused = snap.paused;
+    const timersRunning = snap.timersRunning;
+    const wasTimersRunning = serverStateRef.current.timersRunning;
+
+    // Freeze at the displayed values when timers stop so we do not drift ahead of the server.
+    const serverTimings =
+      serverStateRef.current.serverTimings && !timersRunning && wasTimersRunning
+        ? {
+            miniElapsed: currentValuesRef.current.mini,
+            workElapsed: currentValuesRef.current.work,
+            miniTaking: snap.timings.miniTaking,
+            workTaking: snap.timings.workTaking,
+          }
+        : snap.timings;
 
     // Calculate drift from current interpolated values
     const driftMini = serverTimings.miniElapsed - currentValuesRef.current.mini;
@@ -156,11 +140,6 @@ export function useInterpolatedTimings(
       });
     }
 
-    const isSmoothing =
-      !shouldSnapMini &&
-      !shouldSnapWork &&
-      (Math.abs(driftMini) > 0.1 || Math.abs(driftWork) > 0.1);
-
     lastServerTakingRef.current = {
       mini: serverTimings.miniTaking,
       work: serverTimings.workTaking,
@@ -170,22 +149,22 @@ export function useInterpolatedTimings(
     serverStateRef.current = {
       serverTimings,
       serverReceivedAt,
-      isPaused,
-      isSmoothing,
-      smoothingStartTime: isSmoothing ? serverReceivedAt : 0,
-      smoothingFromMini: isSmoothing ? currentValuesRef.current.mini : serverTimings.miniElapsed,
-      smoothingFromWork: isSmoothing ? currentValuesRef.current.work : serverTimings.workElapsed,
+      timersRunning,
     };
+
+    if (shouldSnapMini || shouldSnapWork || !timersRunning) {
+      publishCurrentTimings(serverReceivedAt, true);
+    }
   });
 
-  // Start RAF on mount, stop on cleanup
+  // Start display updates on mount, stop on cleanup.
   onMount(() => {
     updateCurrentRef();
-    startRaf();
+    startTimer();
   });
 
   onCleanup(() => {
-    stopRaf();
+    stopTimer();
   });
 
   return interpolated;

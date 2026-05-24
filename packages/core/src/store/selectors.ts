@@ -11,12 +11,26 @@ const cloneTimings = (timings: AntiRsiTimings): AntiRsiTimings => ({
 export const selectConfig = (state: StoreState): AntiRsiConfig => ({
   mini: { ...state.config.mini },
   work: { ...state.config.work },
-  appearance: { ...state.config.appearance },
   tickIntervalMs: state.config.tickIntervalMs,
   naturalBreakContinuationWindowSeconds: state.config.naturalBreakContinuationWindowSeconds,
 })
 
 export const selectTimings = (state: StoreState): AntiRsiTimings => cloneTimings(state.timings)
+
+export const selectIsPaused = (state: StoreState): boolean =>
+  state.userPaused || state.inhibitors.size > 0
+
+export const selectIsIdleNaturalBreak = (state: StoreState): boolean => {
+  if (state.status !== "normal") {
+    return false
+  }
+
+  const idleThresholdSeconds = state.config.mini.durationSeconds * 0.3
+  return state.lastIdleSeconds > idleThresholdSeconds
+}
+
+export const selectTimersRunning = (state: StoreState): boolean =>
+  !selectIsPaused(state) && !selectIsIdleNaturalBreak(state)
 
 export const selectSnapshot = (state: StoreState): AntiRsiSnapshot => ({
   state: state.status,
@@ -24,10 +38,8 @@ export const selectSnapshot = (state: StoreState): AntiRsiSnapshot => ({
   lastIdleSeconds: state.lastIdleSeconds,
   lastUpdatedSeconds: state.lastUpdatedSeconds,
   paused: selectIsPaused(state),
+  timersRunning: selectTimersRunning(state),
 })
-
-export const selectIsPaused = (state: StoreState): boolean =>
-  state.userPaused || state.inhibitors.size > 0
 
 export const selectInhibitorCount = (state: StoreState): number => state.inhibitors.size
 

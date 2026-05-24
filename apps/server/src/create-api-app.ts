@@ -6,6 +6,7 @@ import {
   selectSnapshot,
   type Store,
 } from '@antirsi/core';
+import type { ApplyGlobalResponse } from 'hono/client';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { streamSSE } from 'hono/streaming';
@@ -16,11 +17,6 @@ export interface ApiServerDeps {
   store: Store;
 }
 
-export interface ApiApp {
-  app: Hono;
-  broadcast: (event: MainEvent) => void;
-}
-
 const buildInitEvent = (store: Store): MainEvent => ({
   type: 'init',
   config: selectConfig(store.getState()),
@@ -28,7 +24,7 @@ const buildInitEvent = (store: Store): MainEvent => ({
   processes: selectProcesses(store.getState()),
 });
 
-export function createApiApp(deps: ApiServerDeps): ApiApp {
+export function createApiApp(deps: ApiServerDeps) {
   const subscribers = new Set<(event: MainEvent) => void>();
 
   const broadcast = (event: MainEvent): void => {
@@ -59,35 +55,43 @@ export function createApiApp(deps: ApiServerDeps): ApiApp {
     return c.json(body, 404);
   });
 
-  app.get(API_ROUTES.SNAPSHOT, (c) => c.json(selectSnapshot(deps.store.getState())));
+  const routes = app
+    .get(API_ROUTES.SNAPSHOT, (c) => c.json(selectSnapshot(deps.store.getState())))
+    .get(API_ROUTES.CONFIG, (c) => c.json(selectConfig(deps.store.getState())))
+    .get(API_ROUTES.PROCESSES, (c) => c.json(selectProcesses(deps.store.getState())))
+    .post(API_ROUTES.COMMAND, async (c) => {
+      const action = await c.req.json<Action>();
+      await deps.store.dispatch(action);
+      return c.body(null, 204);
+    })
+    .get(API_ROUTES.EVENTS, (c) => {
+      return streamSSE(c, async (stream) => {
+        await stream.writeSSE({ data: JSON.stringify(buildInitEvent(deps.store)) });
 
-  app.get(API_ROUTES.CONFIG, (c) => c.json(selectConfig(deps.store.getState())));
+        const push = (event: MainEvent): void => {
+          void stream.writeSSE({ data: JSON.stringify(event) });
+        };
+        subscribers.add(push);
 
-  app.get(API_ROUTES.PROCESSES, (c) => c.json(selectProcesses(deps.store.getState())));
-
-  app.post(API_ROUTES.COMMAND, async (c) => {
-    const action = await c.req.json<Action>();
-    await deps.store.dispatch(action);
-    return c.body(null, 204);
-  });
-
-  app.get(API_ROUTES.EVENTS, (c) => {
-    return streamSSE(c, async (stream) => {
-      await stream.writeSSE({ data: JSON.stringify(buildInitEvent(deps.store)) });
-
-      const push = (event: MainEvent): void => {
-        void stream.writeSSE({ data: JSON.stringify(event) });
-      };
-      subscribers.add(push);
-
-      await new Promise<void>((resolve) => {
-        c.req.raw.signal.addEventListener('abort', () => {
-          subscribers.delete(push);
-          resolve();
+        await new Promise<void>((resolve) => {
+          c.req.raw.signal.addEventListener('abort', () => {
+            subscribers.delete(push);
+            resolve();
+          });
         });
       });
     });
-  });
 
-  return { app, broadcast };
+  return { app: routes, broadcast };
 }
+
+export type ApiApp = ReturnType<typeof createApiApp>;
+
+/** Hono RPC app type for typed `hc` clients (web, tests). */
+export type ApiAppType = ApplyGlobalResponse<
+  ReturnType<typeof createApiApp>['app'],
+  {
+    400: { json: ApiErrorBody };
+    404: { json: ApiErrorBody };
+  }
+>;

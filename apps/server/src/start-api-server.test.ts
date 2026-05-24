@@ -1,6 +1,6 @@
 import http from 'node:http';
 import { API_ROUTES } from '@antirsi/contracts';
-import { createStore } from '@antirsi/core';
+import { createStore, selectSnapshot } from '@antirsi/core';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { startApiServer, type ApiServerHandle } from './start-api-server';
@@ -123,6 +123,26 @@ describe('startApiServer', () => {
     const nextEvent = (await session.next()) as { type: string; list: string[] };
     expect(nextEvent.type).toBe('processes-updated');
     expect(nextEvent.list).toEqual(['Zoom']);
+    session.close();
+  });
+
+  it('broadcasts timers-paused events to connected SSE clients', async () => {
+    const store = createStore();
+    server = await startApiServer({ store });
+    const session = openSseSession(new URL(API_ROUTES.EVENTS, server.url.href));
+
+    const initEvent = (await session.next()) as { type: string };
+    expect(initEvent.type).toBe('init');
+
+    const pausedSnapshot = {
+      ...selectSnapshot(store.getState()),
+      paused: true,
+    };
+    server.broadcast({ type: 'timers-paused', snapshot: pausedSnapshot });
+
+    const nextEvent = (await session.next()) as { type: string; snapshot: { paused: boolean } };
+    expect(nextEvent.type).toBe('timers-paused');
+    expect(nextEvent.snapshot.paused).toBe(true);
     session.close();
   });
 

@@ -1,9 +1,4 @@
-import type {
-  AntiRsiConfig,
-  AppearanceConfig,
-  BreakConfig,
-  WorkBreakConfig,
-} from "@antirsi/core";
+import type { AntiRsiConfig, BreakConfig, WorkBreakConfig } from "@antirsi/core";
 import { createEffect, createSignal, type Component } from "solid-js";
 import { type AntiRsiRendererApi } from "~/context/antirsi";
 import { Button } from "~/components/ui/Button";
@@ -22,15 +17,10 @@ export const ConfigPanel: Component<ConfigPanelProps> = (props) => {
   const [workConfig, setWorkConfig] = createSignal<WorkBreakConfig>({
     ...props.config.work,
   });
-  const [appearanceConfig, setAppearanceConfig] =
-    createSignal<AppearanceConfig>({
-      ...props.config.appearance,
-    });
 
   createEffect(() => {
     setMiniConfig({ ...props.config.mini });
     setWorkConfig({ ...props.config.work });
-    setAppearanceConfig({ ...props.config.appearance });
   });
 
   const handleApply = (): void => {
@@ -40,7 +30,6 @@ export const ConfigPanel: Component<ConfigPanelProps> = (props) => {
         config: {
           mini: miniConfig(),
           work: workConfig(),
-          appearance: appearanceConfig(),
         },
       })
       .catch((error) =>
@@ -173,44 +162,16 @@ export const ConfigPanel: Component<ConfigPanelProps> = (props) => {
             />
           </label>
         </div>
-      </section>
 
-      <section class="flex flex-col gap-5 rounded-2xl border border-white/[0.08] bg-card p-5 text-foreground shadow-[0_18px_40px_rgba(0,0,0,0.22)] ring-1 ring-white/[0.04]">
-        <div class="space-y-1">
-          <h3 class="text-lg font-semibold">Appearance</h3>
+        <div class="flex flex-wrap gap-3">
+          <Button type="button" variant="primary" onClick={handleApply}>
+            Apply Settings
+          </Button>
+          <Button type="button" variant="secondary" onClick={props.onReset}>
+            Reset Defaults
+          </Button>
         </div>
-
-        <label class="flex items-start gap-3 rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-4 text-sm text-muted-foreground">
-          <input
-            class="mt-0.5 h-4 w-4 accent-[var(--color-accent)]"
-            type="checkbox"
-            checked={appearanceConfig().translucentWindows}
-            onChange={(event) =>
-              setAppearanceConfig({
-                translucentWindows: event.currentTarget.checked,
-              })
-            }
-          />
-          <span class="space-y-1">
-            <span class="block font-semibold text-foreground">
-              Translucent windows
-            </span>
-            <span class="block">
-              Apply a subtle window translucency for the main desktop and break
-              windows.
-            </span>
-          </span>
-        </label>
       </section>
-
-      <div class="flex flex-wrap gap-3">
-        <Button type="button" variant="primary" onClick={handleApply}>
-          Apply Settings
-        </Button>
-        <Button type="button" variant="secondary" onClick={props.onReset}>
-          Reset Defaults
-        </Button>
-      </div>
     </div>
   );
 };

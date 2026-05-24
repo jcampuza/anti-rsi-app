@@ -1,8 +1,7 @@
-export type { BreakConfig, WorkBreakConfig, AppearanceConfig, AntiRsiConfig } from "./config-schema"
+export type { BreakConfig, WorkBreakConfig, AntiRsiConfig } from "./config-schema"
 export {
   BreakConfigSchema,
   WorkBreakConfigSchema,
-  AppearanceConfigSchema,
   AntiRsiConfigSchema,
 } from "./config-schema"
 
@@ -25,6 +24,7 @@ export interface AntiRsiSnapshot {
   lastIdleSeconds: number
   lastUpdatedSeconds: number
   paused: boolean
+  timersRunning: boolean
 }
 
 export type AntiRsiEvent =
@@ -51,9 +51,6 @@ const mergeConfig = (override?: Partial<AntiRsiConfig>): AntiRsiConfig => {
       durationSeconds: 8 * 60,
       postponeSeconds: 10 * 60,
     },
-    appearance: {
-      translucentWindows: false,
-    },
     tickIntervalMs: 500,
     naturalBreakContinuationWindowSeconds: 30,
   }
@@ -65,7 +62,6 @@ const mergeConfig = (override?: Partial<AntiRsiConfig>): AntiRsiConfig => {
   return {
     mini: { ...base.mini, ...(override.mini ?? {}) },
     work: { ...base.work, ...(override.work ?? {}) },
-    appearance: { ...base.appearance, ...(override.appearance ?? {}) },
     tickIntervalMs: override.tickIntervalMs ?? base.tickIntervalMs,
     naturalBreakContinuationWindowSeconds:
       override.naturalBreakContinuationWindowSeconds ?? base.naturalBreakContinuationWindowSeconds,

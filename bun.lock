@@ -52,8 +52,10 @@
       "dependencies": {
         "@antirsi/contracts": "workspace:*",
         "@antirsi/core": "workspace:*",
+        "@antirsi/server": "workspace:*",
         "@solidjs/router": "^0.15.4",
         "class-variance-authority": "^0.7.1",
+        "hono": "^4.12.21",
         "lucide-solid": "^0.544.0",
         "solid-js": "^1.9.10",
       },

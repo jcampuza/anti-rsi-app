@@ -1,31 +1,19 @@
 import type { AntiRsiConfig, AntiRsiSnapshot, BreakType } from "@antirsi/core";
-import { createMemo, type Component, type Accessor } from "solid-js";
+import type { Component } from "solid-js";
 import formatSeconds from "~/utils/time";
-import { ProgressBar } from "./ui/ProgressBar";
 
 interface BreakStatusCardProps {
   snapshot: AntiRsiSnapshot;
   config: AntiRsiConfig;
   breakType: BreakType;
   pendingSeconds: number;
-  miniElapsed: number;
-  workElapsed: number;
 }
 
 const BreakStatusCard: Component<BreakStatusCardProps> = (props) => {
   const breakConfig = () => props.config[props.breakType];
-  const elapsed = () =>
-    props.breakType === "mini" ? props.miniElapsed : props.workElapsed;
 
   const label = () =>
     props.breakType === "mini" ? "Micro Pause" : "Work Break";
-  const intervalMax = () =>
-    props.breakType === "mini"
-      ? props.config.mini.intervalSeconds
-      : props.config.work.intervalSeconds;
-
-  // Use a minimal animation duration since rAF handles smooth updates
-  const progressAnimationMs = () => 50;
 
   return (
     <article class="rounded-2xl border border-white/[0.08] bg-card p-5 text-foreground shadow-[0_18px_40px_rgba(0,0,0,0.22)] ring-1 ring-white/[0.04]">
@@ -50,13 +38,6 @@ const BreakStatusCard: Component<BreakStatusCardProps> = (props) => {
           </span>
         </div>
       </div>
-      <ProgressBar
-        value={elapsed()}
-        max={intervalMax()}
-        label={`${label()} progress`}
-        animationMs={progressAnimationMs()}
-        class="mt-6 h-1.5 w-full"
-      />
     </article>
   );
 };

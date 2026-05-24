@@ -1,6 +1,6 @@
 import { app, shell, BrowserWindow, ipcMain } from 'electron';
 import { join } from 'path';
-import { createStore, selectConfig, StoreTag, type AntiRsiConfig } from '@antirsi/core';
+import { createStore, StoreTag } from '@antirsi/core';
 import { ConfigStore } from './lib/config-store';
 import { AntiRsiEngine } from './lib/antirsi-service';
 import { ProcessService } from './lib/process-service';
@@ -23,7 +23,6 @@ import { ElectronApp } from './lib/electron-app';
 import { getAppLogPath, writeAppLog } from './lib/app-logger';
 
 let mainWindow: BrowserWindow | null = null;
-const TRANSLUCENT_WINDOW_OPACITY = 0.94;
 const isDevelopment = Boolean(process.env.VITE_DEV_SERVER_URL);
 const appDisplayName = getAppDisplayName(isDevelopment);
 const RENDERER_LOG_CHANNEL = '__ANTIRSI_RENDERER_LOG__';
@@ -74,8 +73,6 @@ function createMainWindow(): void {
       sandbox: true,
     },
   });
-
-  applyWindowAppearance(mainWindow, selectConfig(store.getState()));
 
   mainWindow.on('ready-to-show', () => {
     writeAppLog('main', 'Main window ready-to-show');
@@ -180,28 +177,6 @@ const configureAppLogging = (): void => {
   });
 };
 
-const getWindowOpacity = (config: AntiRsiConfig): number => {
-  if (!config.appearance.translucentWindows) {
-    return 1;
-  }
-
-  return TRANSLUCENT_WINDOW_OPACITY;
-};
-
-const applyWindowAppearance = (window: BrowserWindow, config: AntiRsiConfig): void => {
-  if (process.platform === 'linux') {
-    return;
-  }
-
-  window.setOpacity(getWindowOpacity(config));
-};
-
-const applyAllWindowAppearance = (config: AntiRsiConfig): void => {
-  BrowserWindow.getAllWindows().forEach((window) => {
-    applyWindowAppearance(window, config);
-  });
-};
-
 const showOrCreateMainWindow = (): void => {
   if (!mainWindow) {
     createMainWindow();
@@ -238,7 +213,6 @@ const mainProgram = Effect.scoped(
             Stream.runForEach(({ config }) =>
               Effect.gen(function* () {
                 broadcastApiEvent({ type: 'config-changed', config });
-                applyAllWindowAppearance(config);
                 // Persist to disk
                 yield* configStore.save(config);
               }),

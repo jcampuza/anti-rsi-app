@@ -67,8 +67,6 @@ const HomePage: Component = () => {
             snapshot={antirsi.snapshot()!}
             breakType="mini"
             pendingSeconds={pendingMini()}
-            miniElapsed={miniElapsed()}
-            workElapsed={workElapsed()}
           />
           <Show when={antirsi.config()?.work.enabled}>
             <BreakStatusCard
@@ -76,8 +74,6 @@ const HomePage: Component = () => {
               snapshot={antirsi.snapshot()!}
               breakType="work"
               pendingSeconds={pendingWork()}
-              miniElapsed={miniElapsed()}
-              workElapsed={workElapsed()}
             />
           </Show>
         </section>

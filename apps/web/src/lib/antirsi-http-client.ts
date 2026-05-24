@@ -1,64 +1,38 @@
-import { API_ROUTES, type AntiRsiDesktopBridge, type ApiErrorBody, type MainEvent } from "@antirsi/contracts"
-import type { Action, AntiRsiConfig, AntiRsiSnapshot } from "@antirsi/core"
+import type { ApiAppType } from "@antirsi/server"
+import type { AntiRsiDesktopBridge, ApiErrorBody, MainEvent } from "@antirsi/contracts"
+import type { Action } from "@antirsi/core"
+import { hc, parseResponse } from "hono/client"
 
-const parseJson = async <T>(response: Response): Promise<T> => {
-  if (!response.ok) {
-    let message = `Request failed (${response.status})`
-    try {
-      const body = (await response.json()) as ApiErrorBody
-      if (body.message) {
-        message = body.message
-      }
-    } catch {
-      // ignore parse errors for error bodies
+const commandErrorMessage = async (response: Response, fallback: string): Promise<string> => {
+  try {
+    const body = (await response.json()) as ApiErrorBody
+    if (body.message) {
+      return body.message
     }
-    throw new Error(message)
+  } catch {
+    // ignore parse errors for error bodies
   }
-
-  return (await response.json()) as T
+  return fallback
 }
 
-const apiUrl = (baseUrl: string, route: string): string => new URL(route, baseUrl).href
-
 export function createAntiRsiHttpClient(baseUrl: string): AntiRsiDesktopBridge {
-  const getSnapshot = async (): Promise<AntiRsiSnapshot> => {
-    const response = await fetch(apiUrl(baseUrl, API_ROUTES.SNAPSHOT))
-    return parseJson<AntiRsiSnapshot>(response)
-  }
+  const client = hc<ApiAppType>(baseUrl)
 
-  const getConfig = async (): Promise<AntiRsiConfig> => {
-    const response = await fetch(apiUrl(baseUrl, API_ROUTES.CONFIG))
-    return parseJson<AntiRsiConfig>(response)
-  }
+  const getSnapshot = () => parseResponse(client.snapshot.$get())
 
-  const getProcesses = async (): Promise<string[]> => {
-    const response = await fetch(apiUrl(baseUrl, API_ROUTES.PROCESSES))
-    return parseJson<string[]>(response)
-  }
+  const getConfig = () => parseResponse(client.config.$get())
+
+  const getProcesses = () => parseResponse(client.processes.$get())
 
   const dispatch = async (action: Action): Promise<void> => {
-    const response = await fetch(apiUrl(baseUrl, API_ROUTES.COMMAND), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(action),
-    })
-
+    const response = await client.command.$post({ json: action })
     if (!response.ok) {
-      let message = `Command failed (${response.status})`
-      try {
-        const body = (await response.json()) as ApiErrorBody
-        if (body.message) {
-          message = body.message
-        }
-      } catch {
-        // ignore parse errors for error bodies
-      }
-      throw new Error(message)
+      throw new Error(await commandErrorMessage(response, `Command failed (${response.status})`))
     }
   }
 
   const subscribeAll = (callback: (payload: MainEvent) => void): (() => void) => {
-    const source = new EventSource(apiUrl(baseUrl, API_ROUTES.EVENTS))
+    const source = new EventSource(client.events.$url().href)
 
     source.onmessage = (event) => {
       try {
@@ -69,7 +43,9 @@ export function createAntiRsiHttpClient(baseUrl: string): AntiRsiDesktopBridge {
     }
 
     source.onerror = () => {
-      source.close()
+      // Keep the stream open so EventSource can reconnect after transient
+      // interruptions such as system sleep. The API sends a fresh init snapshot
+      // whenever a new SSE connection is established.
     }
 
     return () => {
