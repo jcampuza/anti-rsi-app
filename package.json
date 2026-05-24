@@ -18,12 +18,10 @@
     "typecheck": "tsc --noEmit -p tsconfig.scripts.json && turbo run typecheck",
     "lint": "eslint --cache .",
     "test": "turbo run test",
-    "prepare": "effect-language-service patch",
     "package": "bun scripts/build-desktop-artifact.ts --platform mac",
     "format": "prettier --write ."
   },
   "devDependencies": {
-    "@effect/language-service": "^0.44.1",
     "@types/node": "^22.19.3",
     "eslint": "^9.39.2",
     "eslint-plugin-react": "^7.37.5",

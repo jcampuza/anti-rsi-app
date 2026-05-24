@@ -1,125 +1,108 @@
 import { powerMonitor } from "electron";
-import { Effect, PubSub, Stream, Ref } from "effect";
 import { type AntiRsiEvent, type AntiRsiSnapshot } from "@antirsi/core";
-import { ProcessService } from "./process-service";
-import { AntiRsiEngine } from "./antirsi-service";
-import { OverlayManager } from "./overlay-manager";
+import { type ProcessService } from "./process-service";
+import { type AntiRsiEngine } from "./antirsi-service";
+import { type OverlayManager } from "./overlay-manager";
 import { broadcastApiEvent } from "./api-runtime";
 import { broadcastAntiRsiEvent } from "./window-utils";
 
-export class AppOrchestrator extends Effect.Service<AppOrchestrator>()(
-  "AppOrchestrator",
-  {
-    scoped: Effect.gen(function* () {
-      const antiRsiService = yield* AntiRsiEngine;
-      const processService = yield* ProcessService;
-      const overlayManager = yield* OverlayManager;
+export class AppOrchestrator {
+  private lastStatusBroadcastAt = 0;
+  private readonly statusThrottleMs = 5000;
+  private unsubscribers: Array<() => void> = [];
 
-      const lastStatusBroadcastAtRef = yield* Ref.make(0);
-      const statusThrottleMs = 5000;
+  constructor(
+    private readonly antiRsiEngine: AntiRsiEngine,
+    private readonly processService: ProcessService,
+    private readonly overlayManager: OverlayManager,
+  ) {}
 
-      const handleAntiRsiEvent = (
-        event: AntiRsiEvent,
-        snapshot: AntiRsiSnapshot,
-      ): Effect.Effect<void> =>
-        Effect.gen(function* () {
-          const now = Date.now();
+  start(): void {
+    this.unsubscribers.push(
+      this.antiRsiEngine.onEvent(({ event, snapshot }) => {
+        this.handleAntiRsiEvent(event, snapshot);
+      }),
+    );
 
-          // Pause/resume must reach clients immediately (not via throttled status-update).
-          if (event.type === "paused") {
-            broadcastApiEvent({ type: "timers-paused", snapshot });
-            return;
-          }
-          if (event.type === "resumed") {
-            broadcastApiEvent({ type: "timers-resumed", snapshot });
-            return;
-          }
+    this.unsubscribers.push(
+      this.processService.subscribe((list) => {
+        this.handleProcessesChanged(list);
+      }),
+    );
 
-          if (event.type === "status-update") {
-            const lastBroadcastAt = yield* Ref.get(lastStatusBroadcastAtRef);
-            if (now - lastBroadcastAt < statusThrottleMs) {
-              return;
-            }
-            yield* Ref.set(lastStatusBroadcastAtRef, now);
-          } else if (event.type === "timings-reset") {
-            // Immediate snapshot for user-driven timing changes (reset, postpone, config).
-            yield* Ref.set(lastStatusBroadcastAtRef, now);
-          }
+    const onSuspend = (): void => {
+      this.antiRsiEngine.addInhibitor("system:suspend");
+    };
+    const onResume = (): void => {
+      this.antiRsiEngine.removeInhibitor("system:suspend");
+    };
+    const onLock = (): void => {
+      this.antiRsiEngine.addInhibitor("system:lock");
+    };
+    const onUnlock = (): void => {
+      this.antiRsiEngine.removeInhibitor("system:lock");
+    };
 
-          broadcastAntiRsiEvent(event, snapshot);
+    powerMonitor.on("suspend", onSuspend);
+    powerMonitor.on("resume", onResume);
+    powerMonitor.on("lock-screen", onLock);
+    powerMonitor.on("unlock-screen", onUnlock);
 
-          if (event.type === "mini-break-start") {
-            overlayManager.ensureOverlayWindows("mini");
-          } else if (event.type === "work-break-start") {
-            overlayManager.ensureOverlayWindows("work");
-          } else if (event.type === "break-end") {
-            overlayManager.hideOverlayWindows();
-          }
-        });
+    this.unsubscribers.push(() => {
+      powerMonitor.off("suspend", onSuspend);
+      powerMonitor.off("resume", onResume);
+      powerMonitor.off("lock-screen", onLock);
+      powerMonitor.off("unlock-screen", onUnlock);
+    });
+  }
 
-      // Subscribe to AntiRSI domain events via Stream
-      yield* Effect.forkScoped(
-        Effect.scoped(
-          Effect.gen(function* () {
-            const subscription = yield* PubSub.subscribe(antiRsiService.events);
-            yield* Stream.fromQueue(subscription).pipe(
-              Stream.runForEach(({ event, snapshot }) =>
-                handleAntiRsiEvent(event, snapshot),
-              ),
-            );
-          }),
-        ),
-      );
+  dispose(): void {
+    for (const unsubscribe of this.unsubscribers) {
+      unsubscribe();
+    }
+    this.unsubscribers = [];
+  }
 
-      const handleProcessesChanged = (list: string[]): Effect.Effect<void> =>
-        Effect.gen(function* () {
-          antiRsiService.setProcesses(list);
-          const hasAny = list.length > 0;
-          if (hasAny) {
-            yield* antiRsiService.addInhibitor("process:zoom");
-          } else {
-            yield* antiRsiService.removeInhibitor("process:zoom");
-          }
+  private handleAntiRsiEvent(event: AntiRsiEvent, snapshot: AntiRsiSnapshot): void {
+    const now = Date.now();
 
-          broadcastApiEvent({ type: "processes-updated", list });
-        });
+    if (event.type === "paused") {
+      broadcastApiEvent({ type: "timers-paused", snapshot });
+      return;
+    }
+    if (event.type === "resumed") {
+      broadcastApiEvent({ type: "timers-resumed", snapshot });
+      return;
+    }
 
-      // Subscribe to process changes via Stream to manage inhibitors and update store.
-      yield* Effect.forkScoped(
-        processService.changes.pipe(Stream.runForEach(handleProcessesChanged)),
-      );
+    if (event.type === "status-update") {
+      if (now - this.lastStatusBroadcastAt < this.statusThrottleMs) {
+        return;
+      }
+      this.lastStatusBroadcastAt = now;
+    } else if (event.type === "timings-reset") {
+      this.lastStatusBroadcastAt = now;
+    }
 
-      const onSuspend = (): void => {
-        Effect.runFork(antiRsiService.addInhibitor("system:suspend"));
-      };
-      const onResume = (): void => {
-        Effect.runFork(antiRsiService.removeInhibitor("system:suspend"));
-      };
-      const onLock = (): void => {
-        Effect.runFork(antiRsiService.addInhibitor("system:lock"));
-      };
-      const onUnlock = (): void => {
-        Effect.runFork(antiRsiService.removeInhibitor("system:lock"));
-      };
+    broadcastAntiRsiEvent(event, snapshot);
 
-      // System power events as inhibitors.
-      yield* Effect.acquireRelease(
-        Effect.sync(() => {
-          powerMonitor.on("suspend", onSuspend);
-          powerMonitor.on("resume", onResume);
-          powerMonitor.on("lock-screen", onLock);
-          powerMonitor.on("unlock-screen", onUnlock);
-        }),
-        () =>
-          Effect.sync(() => {
-            powerMonitor.off("suspend", onSuspend);
-            powerMonitor.off("resume", onResume);
-            powerMonitor.off("lock-screen", onLock);
-            powerMonitor.off("unlock-screen", onUnlock);
-          }),
-      );
+    if (event.type === "mini-break-start") {
+      this.overlayManager.ensureOverlayWindows("mini");
+    } else if (event.type === "work-break-start") {
+      this.overlayManager.ensureOverlayWindows("work");
+    } else if (event.type === "break-end") {
+      this.overlayManager.hideOverlayWindows();
+    }
+  }
 
-      return {} as const;
-    }),
-  },
-) {}
+  private handleProcessesChanged(list: string[]): void {
+    this.antiRsiEngine.setProcesses(list);
+    const hasAny = list.length > 0;
+    if (hasAny) {
+      this.antiRsiEngine.addInhibitor("process:zoom");
+    } else {
+      this.antiRsiEngine.removeInhibitor("process:zoom");
+    }
+    broadcastApiEvent({ type: "processes-updated", list });
+  }
+}

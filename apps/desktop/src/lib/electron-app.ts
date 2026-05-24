@@ -1,47 +1,32 @@
 import { app, type BrowserWindow } from 'electron';
-import { Effect, Scope } from 'effect';
 
-export class ElectronApp extends Effect.Service<ElectronApp>()('ElectronApp', {
-  effect: Effect.sync(() => {
-    const onScoped = (
-      event: string,
-      listener: (...args: ReadonlyArray<unknown>) => void,
-    ): Effect.Effect<void, never, Scope.Scope> =>
-      Effect.acquireRelease(
-        Effect.sync(() => {
-          // Electron's app is a Node EventEmitter, so we manage add/remove manually.
-          app.on(event as never, listener as never);
-        }),
-        () =>
-          Effect.sync(() => {
-            app.removeListener(event as never, listener as never);
-          }),
-      ).pipe(Effect.asVoid);
+export const whenReady = (): Promise<void> => app.whenReady().then(() => undefined);
 
-    const awaitOnce = (event: string): Effect.Effect<void, never, Scope.Scope> =>
-      Effect.async<void>((resume) => {
-        const handler = () => resume(Effect.void);
-        app.once(event as never, handler as never);
-        return Effect.sync(() => {
-          app.removeListener(event as never, handler as never);
-        });
-      });
+export const onAppEvent = (
+  event: string,
+  listener: (...args: ReadonlyArray<unknown>) => void,
+): (() => void) => {
+  app.on(event as never, listener as never);
+  return () => {
+    app.removeListener(event as never, listener as never);
+  };
+};
 
-    const onBrowserWindowCreated = (
-      listener: (window: BrowserWindow) => void,
-    ): Effect.Effect<void, never, Scope.Scope> =>
-      onScoped('browser-window-created', (...args) => {
-        const window = args[1] as BrowserWindow | undefined;
-        if (window) {
-          listener(window);
-        }
-      });
+export const onceAppEvent = (event: string): Promise<void> =>
+  new Promise((resolve) => {
+    const handler = (): void => {
+      app.removeListener(event as never, handler as never);
+      resolve();
+    };
+    app.once(event as never, handler as never);
+  });
 
-    return {
-      whenReady: Effect.promise(() => app.whenReady()),
-      onScoped,
-      awaitOnce,
-      onBrowserWindowCreated,
-    } as const;
-  }),
-}) {}
+export const onBrowserWindowCreated = (
+  listener: (window: BrowserWindow) => void,
+): (() => void) =>
+  onAppEvent('browser-window-created', (...args) => {
+    const window = args[1] as BrowserWindow | undefined;
+    if (window) {
+      listener(window);
+    }
+  });

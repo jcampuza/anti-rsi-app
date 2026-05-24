@@ -1,6 +1,5 @@
 import { powerMonitor } from "electron";
 import { performance } from "node:perf_hooks";
-import { Effect, PubSub, Duration, Fiber, Ref } from "effect";
 import {
   deriveEvents,
   selectConfig,
@@ -11,9 +10,10 @@ import {
   type AntiRsiSnapshot,
   selectSnapshot,
   type Action,
+  type Store,
   type StoreState,
-  StoreTag,
 } from "@antirsi/core";
+import { Emitter } from "./emitter";
 
 export type AntiRsiEventPayload = {
   event: AntiRsiEvent;
@@ -51,248 +51,196 @@ const configsEqual = (left: AntiRsiConfig, right: AntiRsiConfig): boolean =>
   left.naturalBreakContinuationWindowSeconds ===
     right.naturalBreakContinuationWindowSeconds;
 
-export class AntiRsiEngine extends Effect.Service<AntiRsiEngine>()(
-  "AntiRsiEngine",
-  {
-    scoped: Effect.gen(function* () {
-      const store = yield* StoreTag;
+export class AntiRsiEngine {
+  private readonly eventEmitter = new Emitter<AntiRsiEventPayload>();
+  private readonly configEmitter = new Emitter<ConfigChangedPayload>();
+  private readonly processesEmitter = new Emitter<ProcessesChangedPayload>();
 
-      // PubSub for events
-      const eventPubSub = yield* PubSub.unbounded<AntiRsiEventPayload>();
-      const configPubSub = yield* PubSub.unbounded<ConfigChangedPayload>();
-      const processesPubSub =
-        yield* PubSub.unbounded<ProcessesChangedPayload>();
+  private lastTickTimestamp: number | null = null;
+  private intervalId: ReturnType<typeof setInterval> | null = null;
+  private unsubscribeStore: (() => void) | null = null;
+  private started = false;
 
-      // Refs for mutable state
-      const lastTickTimestampRef = yield* Ref.make<number | null>(null);
-      const timerFiberRef = yield* Ref.make<Fiber.RuntimeFiber<
-        void,
-        never
-      > | null>(null);
+  constructor(private readonly store: Store) {}
 
-      // Helper to get the current snapshot
-      const getSnapshot = (): AntiRsiSnapshot =>
-        selectSnapshot(store.getState());
+  start(): void {
+    if (this.started) {
+      return;
+    }
+    this.started = true;
 
-      // Helper to dispatch an action
-      const dispatch = (action: Action): void => {
-        store.dispatch(action);
-      };
+    let previousState = this.store.getState();
+    this.unsubscribeStore = this.store.subscribe((nextState, action) => {
+      const prevState = previousState;
+      previousState = nextState;
+      this.handleStateTransition(prevState, nextState, action);
+    });
 
-      // Emit an event to all subscribers
-      const emit = (
-        event: AntiRsiEvent,
-        snapshot: AntiRsiSnapshot,
-      ): Effect.Effect<void> =>
-        PubSub.publish(eventPubSub, { event, snapshot });
+    const initialConfig = selectConfig(this.store.getState());
+    this.configEmitter.publish({ config: initialConfig });
+    const initialSnapshot = this.getSnapshot();
+    this.eventEmitter.publish({ event: { type: "status-update" }, snapshot: initialSnapshot });
 
-      // Handle a single tick
-      const handleTick = Effect.gen(function* () {
-        if (selectIsPaused(store.getState())) {
-          return;
-        }
-        const now = performance.now();
-        const lastTimestamp = yield* Ref.get(lastTickTimestampRef);
-        const dtSeconds = Math.max(0, (now - (lastTimestamp ?? now)) / 1000);
-        yield* Ref.set(lastTickTimestampRef, now);
-        const idleSeconds = powerMonitor.getSystemIdleTime();
+    this.restartTimer();
+  }
 
-        dispatch({ type: "TICK", idleSeconds, dtSeconds });
-      });
+  dispose(): void {
+    this.stopTimer();
+    this.unsubscribeStore?.();
+    this.unsubscribeStore = null;
+    this.started = false;
+  }
 
-      // Create a tick loop effect
-      const createTickLoop = (
-        intervalMs: number,
-      ): Effect.Effect<void, never, never> =>
-        Effect.gen(function* () {
-          yield* Ref.set(lastTickTimestampRef, performance.now());
-          return yield* Effect.forever(
-            Effect.gen(function* () {
-              yield* Effect.sleep(Duration.millis(intervalMs));
-              yield* handleTick;
-            }),
-          );
-        });
+  onEvent(listener: (payload: AntiRsiEventPayload) => void): () => void {
+    return this.eventEmitter.subscribe(listener);
+  }
 
-      // Start or restart the timer
-      const restartTimer = Effect.gen(function* () {
-        // Stop existing timer if any
-        const existingFiber = yield* Ref.get(timerFiberRef);
-        if (existingFiber) {
-          yield* Fiber.interrupt(existingFiber);
-        }
+  onConfigChange(listener: (payload: ConfigChangedPayload) => void): () => void {
+    return this.configEmitter.subscribe(listener);
+  }
 
-        if (selectIsPaused(store.getState())) {
-          yield* Ref.set(lastTickTimestampRef, null);
-          yield* Ref.set(timerFiberRef, null);
-          return;
-        }
+  onProcessesChange(listener: (payload: ProcessesChangedPayload) => void): () => void {
+    return this.processesEmitter.subscribe(listener);
+  }
 
-        const { tickIntervalMs } = selectConfig(store.getState());
-        const fiber = yield* Effect.forkDaemon(createTickLoop(tickIntervalMs));
-        yield* Ref.set(timerFiberRef, fiber);
-      });
+  getSnapshot(): AntiRsiSnapshot {
+    return selectSnapshot(this.store.getState());
+  }
 
-      // Sync timer with pause state
-      const syncTimerWithPause = (paused: boolean): Effect.Effect<void> =>
-        Effect.gen(function* () {
-          if (paused) {
-            const existingFiber = yield* Ref.get(timerFiberRef);
-            if (existingFiber) {
-              yield* Fiber.interrupt(existingFiber);
-              yield* Ref.set(timerFiberRef, null);
-            }
-            yield* Ref.set(lastTickTimestampRef, null);
-            return;
-          }
-          yield* restartTimer;
-        });
+  getConfig(): AntiRsiConfig {
+    return selectConfig(this.store.getState());
+  }
 
-      // Handle state transitions from the store
-      const handleStateTransition = (
-        prevState: StoreState,
-        nextState: StoreState,
-        action: Action,
-      ): Effect.Effect<void> =>
-        Effect.gen(function* () {
-          const prevPaused = selectIsPaused(prevState);
-          const nextPaused = selectIsPaused(nextState);
+  dispatch(action: Action): void {
+    this.store.dispatch(action);
+  }
 
-          if (prevPaused !== nextPaused) {
-            yield* syncTimerWithPause(nextPaused);
-          }
+  setProcesses(processes: string[]): void {
+    this.dispatch({ type: "SET_PROCESSES", processes });
+  }
 
-          const prevConfig = selectConfig(prevState);
-          const nextConfig = selectConfig(nextState);
-          const configChanged = !configsEqual(prevConfig, nextConfig);
+  skipWorkBreak(): void {
+    if (selectIsPaused(this.store.getState())) {
+      return;
+    }
+    this.dispatch({ type: "END_WORK_BREAK" });
+  }
 
-          if (configChanged) {
-            yield* PubSub.publish(configPubSub, { config: nextConfig });
-            if (
-              prevConfig.tickIntervalMs !== nextConfig.tickIntervalMs &&
-              !nextPaused
-            ) {
-              yield* restartTimer;
-            }
-          }
+  skipMicroBreak(): void {
+    if (selectIsPaused(this.store.getState())) {
+      return;
+    }
+    this.dispatch({ type: "END_MINI_BREAK" });
+  }
 
-          const prevProcesses = selectProcesses(prevState);
-          const nextProcesses = selectProcesses(nextState);
-          const processesChanged =
-            prevProcesses.length !== nextProcesses.length ||
-            !prevProcesses.every((p, i) => p === nextProcesses[i]);
+  pause(): void {
+    this.dispatch({ type: "SET_USER_PAUSED", value: true });
+    this.syncTimerWithPause(true);
+  }
 
-          if (processesChanged) {
-            yield* PubSub.publish(processesPubSub, {
-              processes: nextProcesses,
-            });
-          }
+  resume(): void {
+    this.dispatch({ type: "SET_USER_PAUSED", value: false });
+    this.syncTimerWithPause(selectIsPaused(this.store.getState()));
+  }
 
-          const { events } = deriveEvents(prevState, nextState, action);
-          if (events.length === 0) {
-            return;
-          }
-          const snapshot = selectSnapshot(nextState);
-          for (const event of events) {
-            yield* emit(event, snapshot);
-          }
-        });
+  addInhibitor(sourceId: string): void {
+    this.dispatch({ type: "ADD_INHIBITOR", id: sourceId });
+    this.syncTimerWithPause(selectIsPaused(this.store.getState()));
+  }
 
-      // Subscribe to store changes
-      let previousState = store.getState();
-      yield* Effect.acquireRelease(
-        Effect.sync(() =>
-          store.subscribe((nextState, action) => {
-            const prevState = previousState;
-            previousState = nextState;
-            // Run the state transition handler synchronously
-            Effect.runFork(handleStateTransition(prevState, nextState, action));
-          }),
-        ),
-        (unsubscribe) => Effect.sync(() => unsubscribe()),
-      );
+  removeInhibitor(sourceId: string): void {
+    this.dispatch({ type: "REMOVE_INHIBITOR", id: sourceId });
+    this.syncTimerWithPause(selectIsPaused(this.store.getState()));
+  }
 
-      // Emit initial config and status
-      const initialConfig = selectConfig(store.getState());
-      yield* PubSub.publish(configPubSub, { config: initialConfig });
-      const initialSnapshot = getSnapshot();
-      yield* emit({ type: "status-update" }, initialSnapshot);
+  private handleTick(): void {
+    if (selectIsPaused(this.store.getState())) {
+      return;
+    }
+    const now = performance.now();
+    const dtSeconds = Math.max(0, (now - (this.lastTickTimestamp ?? now)) / 1000);
+    this.lastTickTimestamp = now;
+    const idleSeconds = powerMonitor.getSystemIdleTime();
+    this.dispatch({ type: "TICK", idleSeconds, dtSeconds });
+  }
 
-      // Start the timer
-      yield* restartTimer;
+  private stopTimer(): void {
+    if (this.intervalId !== null) {
+      clearInterval(this.intervalId);
+      this.intervalId = null;
+    }
+    this.lastTickTimestamp = null;
+  }
 
-      // Cleanup timer on scope finalization
-      yield* Effect.addFinalizer(() =>
-        Effect.gen(function* () {
-          const fiber = yield* Ref.get(timerFiberRef);
-          if (fiber) {
-            yield* Fiber.interrupt(fiber);
-          }
-        }),
-      );
+  private restartTimer(): void {
+    this.stopTimer();
 
-      // Service interface
-      return {
-        // Event streams
-        events: eventPubSub,
-        configChanges: configPubSub,
-        processesChanges: processesPubSub,
+    if (selectIsPaused(this.store.getState())) {
+      return;
+    }
 
-        // Snapshot access
-        snapshot: Effect.sync(() => getSnapshot()),
+    const { tickIntervalMs } = selectConfig(this.store.getState());
+    this.lastTickTimestamp = performance.now();
+    this.intervalId = setInterval(() => {
+      this.handleTick();
+    }, tickIntervalMs);
+  }
 
-        // Synchronous snapshot access for overlay manager close handler
-        getSnapshot,
-        getConfig: (): AntiRsiConfig => selectConfig(store.getState()),
+  private syncTimerWithPause(paused: boolean): void {
+    if (paused) {
+      this.stopTimer();
+      return;
+    }
+    this.restartTimer();
+  }
 
-        // Actions
-        dispatch: (action: Action): Effect.Effect<void> =>
-          Effect.sync(() => {
-            dispatch(action);
-          }),
+  private emit(event: AntiRsiEvent, snapshot: AntiRsiSnapshot): void {
+    this.eventEmitter.publish({ event, snapshot });
+  }
 
-        setProcesses: (processes: string[]): void => {
-          dispatch({ type: "SET_PROCESSES", processes });
-        },
+  private handleStateTransition(
+    prevState: StoreState,
+    nextState: StoreState,
+    action: Action,
+  ): void {
+    const prevPaused = selectIsPaused(prevState);
+    const nextPaused = selectIsPaused(nextState);
 
-        skipWorkBreak: (): void => {
-          if (selectIsPaused(store.getState())) {
-            return;
-          }
-          dispatch({ type: "END_WORK_BREAK" });
-        },
+    if (prevPaused !== nextPaused) {
+      this.syncTimerWithPause(nextPaused);
+    }
 
-        skipMicroBreak: (): void => {
-          if (selectIsPaused(store.getState())) {
-            return;
-          }
-          dispatch({ type: "END_MINI_BREAK" });
-        },
+    const prevConfig = selectConfig(prevState);
+    const nextConfig = selectConfig(nextState);
+    const configChanged = !configsEqual(prevConfig, nextConfig);
 
-        pause: (): Effect.Effect<void> =>
-          Effect.gen(function* () {
-            dispatch({ type: "SET_USER_PAUSED", value: true });
-            yield* syncTimerWithPause(true);
-          }),
+    if (configChanged) {
+      this.configEmitter.publish({ config: nextConfig });
+      if (
+        prevConfig.tickIntervalMs !== nextConfig.tickIntervalMs &&
+        !nextPaused
+      ) {
+        this.restartTimer();
+      }
+    }
 
-        resume: (): Effect.Effect<void> =>
-          Effect.gen(function* () {
-            dispatch({ type: "SET_USER_PAUSED", value: false });
-            yield* syncTimerWithPause(selectIsPaused(store.getState()));
-          }),
+    const prevProcesses = selectProcesses(prevState);
+    const nextProcesses = selectProcesses(nextState);
+    const processesChanged =
+      prevProcesses.length !== nextProcesses.length ||
+      !prevProcesses.every((p, i) => p === nextProcesses[i]);
 
-        addInhibitor: (sourceId: string): Effect.Effect<void> =>
-          Effect.gen(function* () {
-            dispatch({ type: "ADD_INHIBITOR", id: sourceId });
-            yield* syncTimerWithPause(selectIsPaused(store.getState()));
-          }),
+    if (processesChanged) {
+      this.processesEmitter.publish({ processes: nextProcesses });
+    }
 
-        removeInhibitor: (sourceId: string): Effect.Effect<void> =>
-          Effect.gen(function* () {
-            dispatch({ type: "REMOVE_INHIBITOR", id: sourceId });
-            yield* syncTimerWithPause(selectIsPaused(store.getState()));
-          }),
-      } as const;
-    }),
-  },
-) {}
+    const { events } = deriveEvents(prevState, nextState, action);
+    if (events.length === 0) {
+      return;
+    }
+    const snapshot = selectSnapshot(nextState);
+    for (const event of events) {
+      this.emit(event, snapshot);
+    }
+  }
+}

@@ -1,116 +1,107 @@
 import { BrowserWindow, screen } from 'electron';
-import { Effect } from 'effect';
 import { type BreakType } from '@antirsi/core';
 import { IPC_EVENTS } from '@antirsi/contracts';
 import { loadRenderer, getPreloadPath } from './window-utils';
-import { AntiRsiEngine } from './antirsi-service';
+import { type AntiRsiEngine } from './antirsi-service';
 
-export class OverlayManager extends Effect.Service<OverlayManager>()('OverlayManager', {
-  scoped: Effect.gen(function* () {
-    const antiRsiService = yield* AntiRsiEngine;
+export class OverlayManager {
+  private overlayWindows: BrowserWindow[] = [];
+  private readonly breakTypeMap = new Map<BrowserWindow, BreakType>();
 
-    let overlayWindows: BrowserWindow[] = [];
-    const breakTypeMap = new Map<BrowserWindow, BreakType>();
+  constructor(private readonly antiRsiEngine: AntiRsiEngine) {}
 
-    const hideOverlayWindows = (): void => {
-      if (overlayWindows.length === 0) {
-        return;
-      }
+  dispose(): void {
+    this.hideOverlayWindows();
+  }
 
-      overlayWindows.forEach((window) => {
-        window.removeAllListeners('close');
-        breakTypeMap.delete(window);
-        window.close();
+  hideOverlayWindows(): void {
+    if (this.overlayWindows.length === 0) {
+      return;
+    }
+
+    this.overlayWindows.forEach((window) => {
+      window.removeAllListeners('close');
+      this.breakTypeMap.delete(window);
+      window.close();
+    });
+
+    this.overlayWindows = [];
+  }
+
+  ensureOverlayWindows(breakType: BreakType): void {
+    const displays = screen.getAllDisplays();
+
+    if (this.overlayWindows.length === displays.length) {
+      this.overlayWindows.forEach((window) => {
+        const route = breakType === 'mini' ? '/micro-break' : '/work-break';
+        loadRenderer(window, { overlay: true, route });
+        window.webContents.send(IPC_EVENTS.OVERLAY_BREAK, breakType);
+        this.breakTypeMap.set(window, breakType);
+        window.showInactive();
+      });
+      return;
+    }
+
+    this.hideOverlayWindows();
+
+    this.overlayWindows = displays.map((display) => {
+      const overlayWindow = new BrowserWindow({
+        x: display.bounds.x,
+        y: display.bounds.y,
+        width: display.bounds.width,
+        height: display.bounds.height,
+        show: false,
+        frame: false,
+        transparent: true,
+        resizable: false,
+        movable: false,
+        fullscreenable: false,
+        focusable: true,
+        alwaysOnTop: true,
+        webPreferences: {
+          preload: getPreloadPath(),
+          contextIsolation: true,
+          nodeIntegration: false,
+          sandbox: true,
+        },
       });
 
-      overlayWindows = [];
-    };
+      overlayWindow.setAlwaysOnTop(true, 'screen-saver');
 
-    yield* Effect.addFinalizer(() => Effect.sync(() => hideOverlayWindows()));
+      const route = breakType === 'mini' ? '/micro-break' : '/work-break';
+      loadRenderer(overlayWindow, { overlay: true, route });
 
-    const ensureOverlayWindows = (breakType: BreakType): void => {
-      const displays = screen.getAllDisplays();
+      this.breakTypeMap.set(overlayWindow, breakType);
 
-      if (overlayWindows.length === displays.length) {
-        overlayWindows.forEach((window) => {
-          const route = breakType === 'mini' ? '/micro-break' : '/work-break';
-          loadRenderer(window, { overlay: true, route });
-          window.webContents.send(IPC_EVENTS.OVERLAY_BREAK, breakType);
-          breakTypeMap.set(window, breakType);
-          window.showInactive();
-        });
-        return;
-      }
+      overlayWindow.on('close', () => {
+        if (this.overlayWindows.includes(overlayWindow)) {
+          const windowBreakType = this.breakTypeMap.get(overlayWindow);
+          if (windowBreakType) {
+            const snapshot = this.antiRsiEngine.getSnapshot();
+            const isInBreak =
+              windowBreakType === 'mini'
+                ? snapshot.state === 'in-mini'
+                : snapshot.state === 'in-work';
 
-      hideOverlayWindows();
-
-      overlayWindows = displays.map((display) => {
-        // Keep break overlays as normal app windows so Cmd+Tab continues to surface
-        // Anti RSI while a break is active.
-        const overlayWindow = new BrowserWindow({
-          x: display.bounds.x,
-          y: display.bounds.y,
-          width: display.bounds.width,
-          height: display.bounds.height,
-          show: false,
-          frame: false,
-          transparent: true,
-          resizable: false,
-          movable: false,
-          fullscreenable: false,
-          focusable: true,
-          alwaysOnTop: true,
-          webPreferences: {
-            preload: getPreloadPath(),
-            contextIsolation: true,
-            nodeIntegration: false,
-            sandbox: true,
-          },
-        });
-
-        overlayWindow.setAlwaysOnTop(true, 'screen-saver');
-
-        const route = breakType === 'mini' ? '/micro-break' : '/work-break';
-        loadRenderer(overlayWindow, { overlay: true, route });
-
-        breakTypeMap.set(overlayWindow, breakType);
-
-        overlayWindow.on('close', () => {
-          if (overlayWindows.includes(overlayWindow)) {
-            const windowBreakType = breakTypeMap.get(overlayWindow);
-            if (windowBreakType) {
-              // Check if we're actually in a break state before skipping
-              const snapshot = antiRsiService.getSnapshot();
-              const isInBreak =
-                windowBreakType === 'mini'
-                  ? snapshot.state === 'in-mini'
-                  : snapshot.state === 'in-work';
-
-              if (isInBreak) {
-                if (windowBreakType === 'mini') {
-                  antiRsiService.skipMicroBreak();
-                } else {
-                  antiRsiService.skipWorkBreak();
-                }
+            if (isInBreak) {
+              if (windowBreakType === 'mini') {
+                this.antiRsiEngine.skipMicroBreak();
+              } else {
+                this.antiRsiEngine.skipWorkBreak();
               }
             }
-            breakTypeMap.delete(overlayWindow);
           }
-        });
-
-        overlayWindow.once('ready-to-show', () => {
-          overlayWindow.showInactive();
-          overlayWindow.focus();
-          overlayWindow.webContents.send(IPC_EVENTS.OVERLAY_BREAK, breakType);
-        });
-
-        return overlayWindow;
+          this.breakTypeMap.delete(overlayWindow);
+        }
       });
-    };
 
-    return {
-      ensureOverlayWindows,
-      hideOverlayWindows,
-    } as const;
-  }),
-}) {}
+      overlayWindow.once('ready-to-show', () => {
+        overlayWindow.showInactive();
+        overlayWindow.focus();
+        overlayWindow.webContents.send(IPC_EVENTS.OVERLAY_BREAK, breakType);
+      });
+
+      return overlayWindow;
+    });
+  }
+}

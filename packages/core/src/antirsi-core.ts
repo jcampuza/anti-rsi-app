@@ -1,5 +1,9 @@
 export type { BreakConfig, WorkBreakConfig, AntiRsiConfig } from "./config-schema"
 export {
+  antiRsiConfigSchema,
+  breakConfigSchema,
+  workBreakConfigSchema,
+  parseAntiRsiConfig,
   BreakConfigSchema,
   WorkBreakConfigSchema,
   AntiRsiConfigSchema,

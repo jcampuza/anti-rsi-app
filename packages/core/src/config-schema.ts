@@ -1,26 +1,35 @@
-import { Schema } from "effect"
+import { z } from "zod"
 
-export const BreakConfigSchema = Schema.Struct({
-  intervalSeconds: Schema.Number.pipe(Schema.positive()),
-  durationSeconds: Schema.Number.pipe(Schema.positive()),
+export const breakConfigSchema = z.object({
+  intervalSeconds: z.number().positive(),
+  durationSeconds: z.number().positive(),
 })
 
-export const WorkBreakConfigSchema = Schema.Struct({
-  enabled: Schema.optionalWith(Schema.Boolean, {
-    default: () => true,
-  }),
-  intervalSeconds: Schema.Number.pipe(Schema.positive()),
-  durationSeconds: Schema.Number.pipe(Schema.positive()),
-  postponeSeconds: Schema.Number.pipe(Schema.positive()),
+export const workBreakConfigSchema = z.object({
+  enabled: z.boolean().default(true),
+  intervalSeconds: z.number().positive(),
+  durationSeconds: z.number().positive(),
+  postponeSeconds: z.number().positive(),
 })
 
-export const AntiRsiConfigSchema = Schema.Struct({
-  mini: BreakConfigSchema,
-  work: WorkBreakConfigSchema,
-  tickIntervalMs: Schema.Number.pipe(Schema.positive()),
-  naturalBreakContinuationWindowSeconds: Schema.Number.pipe(Schema.nonNegative()),
+export const antiRsiConfigSchema = z.object({
+  mini: breakConfigSchema,
+  work: workBreakConfigSchema,
+  tickIntervalMs: z.number().positive(),
+  naturalBreakContinuationWindowSeconds: z.number().nonnegative(),
 })
 
-export type BreakConfig = typeof BreakConfigSchema.Type
-export type WorkBreakConfig = typeof WorkBreakConfigSchema.Type
-export type AntiRsiConfig = typeof AntiRsiConfigSchema.Type
+export type BreakConfig = z.infer<typeof breakConfigSchema>
+export type WorkBreakConfig = z.infer<typeof workBreakConfigSchema>
+export type AntiRsiConfig = z.infer<typeof antiRsiConfigSchema>
+
+/** @deprecated Use `breakConfigSchema` */
+export const BreakConfigSchema = breakConfigSchema
+/** @deprecated Use `workBreakConfigSchema` */
+export const WorkBreakConfigSchema = workBreakConfigSchema
+/** @deprecated Use `antiRsiConfigSchema` */
+export const AntiRsiConfigSchema = antiRsiConfigSchema
+
+export function parseAntiRsiConfig(input: unknown): AntiRsiConfig {
+  return antiRsiConfigSchema.parse(input)
+}

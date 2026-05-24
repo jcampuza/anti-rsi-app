@@ -1,4 +1,3 @@
-import { Context } from 'effect';
 import { type Action } from './actions';
 import { createInitialState, reducer } from './reducer';
 import { type StoreState } from './state';
@@ -31,5 +30,3 @@ export const createStore = (initialConfig?: Partial<StoreState['config']>): Stor
 
   return { getState, dispatch, subscribe };
 };
-
-export class StoreTag extends Context.Tag('Store')<StoreTag, Store>() {}

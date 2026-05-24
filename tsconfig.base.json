@@ -12,11 +12,6 @@
     "skipLibCheck": true,
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
-    "resolveJsonModule": true,
-    "plugins": [
-      {
-        "name": "@effect/language-service"
-      }
-    ]
+    "resolveJsonModule": true
   }
 }
