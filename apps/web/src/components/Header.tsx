@@ -46,7 +46,7 @@ export const Header = () => {
           <div class="absolute inset-0 flex items-center justify-center">
             <ConfigPanel
               class="z-10"
-              config={antirsi.config()!}
+              config={antirsi.config()}
               api={antirsi.api}
               onReset={() => {}}
             />

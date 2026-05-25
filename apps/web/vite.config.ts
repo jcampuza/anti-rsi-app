@@ -1,4 +1,5 @@
 import { resolve } from "node:path"
+import { tanstackRouter } from "@tanstack/router-plugin/vite"
 import tailwindcss from "@tailwindcss/vite"
 import solid from "vite-plugin-solid"
 import { defineConfig } from "vite"
@@ -10,7 +11,11 @@ export default defineConfig({
   define: {
     "import.meta.env.VITE_API_BASE_URL": JSON.stringify(process.env.VITE_API_BASE_URL ?? ""),
   },
-  plugins: [solid(), tailwindcss()],
+  plugins: [
+    tanstackRouter({ target: "solid", autoCodeSplitting: true }),
+    solid(),
+    tailwindcss(),
+  ],
   resolve: {
     alias: {
       "~": resolve(__dirname, "src"),

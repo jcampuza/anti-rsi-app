@@ -14,12 +14,13 @@
     "@antirsi/core": "workspace:*",
     "@antirsi/server": "workspace:*",
     "hono": "^4.12.21",
-    "@solidjs/router": "^0.15.4",
+    "@tanstack/solid-router": "^1.121.0",
     "class-variance-authority": "^0.7.1",
     "lucide-solid": "^0.544.0",
     "solid-js": "^1.9.10"
   },
   "devDependencies": {
+    "@tanstack/router-plugin": "^1.121.0",
     "@tailwindcss/vite": "^4.1.18",
     "tailwindcss": "^4.1.18",
     "vite": "^8.0.10",

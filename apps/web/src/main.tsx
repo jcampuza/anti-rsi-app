@@ -1,13 +1,19 @@
 // @refresh reload
-import { render } from "solid-js/web"
-import { resolveApiBaseUrl } from "~/lib/api-base-url"
-import { App } from "./app"
+import { RouterProvider, createRouter } from "@tanstack/solid-router";
+import { render } from "solid-js/web";
+import { resolveApiBaseUrl } from "~/lib/api-base-url";
+import { routeTree } from "./routeTree.gen";
 
-resolveApiBaseUrl()
+resolveApiBaseUrl();
 
-const root = document.getElementById("root")
-if (!(root instanceof HTMLElement)) {
-  throw new Error("Root element not found")
+const router = createRouter({ routeTree });
+
+declare module "@tanstack/solid-router" {
+  interface Register {
+    router: typeof router;
+  }
 }
 
-render(() => <App />, root)
+const root = document.getElementById("root") as HTMLElement;
+
+render(() => <RouterProvider router={router} />, root);
