@@ -1,0 +1,20 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Anti RSI desktop permissions",
+  "windows": ["main", "overlay-*"],
+  "permissions": [
+    "core:default",
+    "opener:default",
+    {
+      "identifier": "shell:allow-spawn",
+      "allow": [
+        {
+          "name": "binaries/antirsi-sidecar",
+          "sidecar": true,
+          "args": true
+        }
+      ]
+    }
+  ]
+}

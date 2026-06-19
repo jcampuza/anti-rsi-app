@@ -8,17 +8,15 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "bun scripts/dev-runner.ts dev",
-    "dev:web": "bun scripts/dev-runner.ts dev:web",
-    "dev:desktop": "bun scripts/dev-runner.ts dev:desktop",
+    "dev": "bun run --cwd apps/tauri dev",
+    "dev:web": "PORT=5733 VITE_API_BASE_URL=http://127.0.0.1:56321/ bun run --cwd apps/web dev -- --host 127.0.0.1",
     "build": "turbo run build",
     "build:web": "turbo run build --filter=@antirsi/web",
-    "build:desktop": "turbo run build --filter=@antirsi/core --filter=@antirsi/contracts --filter=@antirsi/server --filter=@antirsi/web --filter=@antirsi/desktop",
-    "start:desktop": "turbo run start --filter=@antirsi/desktop",
-    "typecheck": "tsc --noEmit -p tsconfig.scripts.json && turbo run typecheck",
+    "build:tauri": "bun run --cwd apps/tauri build",
+    "typecheck": "turbo run typecheck",
     "lint": "eslint --cache .",
     "test": "turbo run test",
-    "package": "bun scripts/build-desktop-artifact.ts --platform mac",
+    "package": "bun run build:tauri",
     "format": "prettier --write ."
   },
   "devDependencies": {

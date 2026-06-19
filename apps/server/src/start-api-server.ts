@@ -7,6 +7,7 @@ import { createApiApp } from './create-api-app';
 
 export interface ApiServerDeps {
   store: Store;
+  port?: number;
 }
 
 export interface ApiServerHandle {
@@ -23,7 +24,7 @@ export function startApiServer(deps: ApiServerDeps): Promise<ApiServerHandle> {
       {
         fetch: app.fetch,
         hostname: LOOPBACK_HOST,
-        port: 0,
+        port: deps.port ?? 0,
       },
       (info) => {
         resolve({

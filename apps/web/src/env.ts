@@ -1,21 +1,19 @@
-import type { AntiRsiWindowApi } from "@antirsi/contracts"
+import type { AntiRsiWindowApi } from "@antirsi/contracts";
 
-type WindowWithApi = Window & { api?: AntiRsiWindowApi }
+type WindowWithApi = Window & { api?: AntiRsiWindowApi };
 
 const getWindowWithApi = (): WindowWithApi | undefined => {
   if (typeof window === "undefined") {
-    return undefined
+    return undefined;
   }
-  return window as WindowWithApi
-}
+  return window as WindowWithApi;
+};
 
 /**
- * True when running inside the Electron preload bridge.
- * The preload exposes `window.api` before any web code runs.
+ * True when running inside a native shell that exposes runtime metadata.
  */
-export const hasDesktopBridge = (): boolean => getWindowWithApi()?.api !== undefined
+export const hasDesktopBridge = (): boolean =>
+  getWindowWithApi()?.api !== undefined;
 
-/** @deprecated Use hasDesktopBridge */
-export const isElectron = hasDesktopBridge
-
-export const getDesktopWindowApi = (): AntiRsiWindowApi | undefined => getWindowWithApi()?.api
+export const getDesktopWindowApi = (): AntiRsiWindowApi | undefined =>
+  getWindowWithApi()?.api;

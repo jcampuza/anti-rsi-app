@@ -2,7 +2,6 @@ import { createFileRoute } from "@tanstack/solid-router";
 import { Show, createMemo } from "solid-js";
 import BreakStatusCard from "~/components/BreakStatusCard";
 import { HeaderActions } from "~/components/HeaderActions";
-import { Versions } from "~/components/Versions";
 import { useAntiRsi } from "~/context/antirsi";
 import { useInterpolatedTimings } from "~/hooks/useInterpolatedTimings";
 
@@ -29,9 +28,7 @@ function HomePage() {
 
   return (
     <div class="app-region-drag flex min-h-[520px] flex-col gap-6 px-7 py-8">
-      <Show
-        when={antirsi.snapshot().paused && antirsi.processes().length > 0}
-      >
+      <Show when={antirsi.snapshot().paused && antirsi.processes().length > 0}>
         <section class="rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3">
           <p class="text-sm font-semibold text-accent">
             Timers paused because of active processes:{" "}
@@ -77,10 +74,6 @@ function HomePage() {
           snapshot={antirsi.snapshot()}
         />
       </div>
-
-      <Show when={import.meta.env.DEV}>
-        <Versions />
-      </Show>
     </div>
   );
 }

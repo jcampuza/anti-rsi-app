@@ -3,6 +3,7 @@ import type { AntiRsiConfig, AntiRsiSnapshot } from "@antirsi/core";
 import type { AntiRsiDesktopBridge } from "@antirsi/contracts";
 import { Loader2 } from "lucide-solid";
 import { resolveAntiRsiClient } from "~/lib/antirsi-client";
+import { startTauriOverlayManager } from "~/lib/tauri-overlay-manager";
 import {
   createContext,
   createEffect,
@@ -107,6 +108,13 @@ export function AntiRsiProvider(props: ParentProps) {
       applyMainEvent(payload, (patch) => setState(patch));
     });
     onCleanup(() => unsubscribe());
+  });
+
+  createEffect(() => {
+    const cleanup = startTauriOverlayManager(api);
+    onCleanup(() => {
+      cleanup();
+    });
   });
 
   const value: AntiRsiBootstrapContextValue = {

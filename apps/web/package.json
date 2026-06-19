@@ -13,6 +13,7 @@
     "@antirsi/contracts": "workspace:*",
     "@antirsi/core": "workspace:*",
     "@antirsi/server": "workspace:*",
+    "@tauri-apps/api": "^2.11.1",
     "hono": "^4.12.21",
     "@tanstack/solid-router": "^1.121.0",
     "class-variance-authority": "^0.7.1",

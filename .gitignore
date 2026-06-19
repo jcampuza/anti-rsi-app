@@ -7,6 +7,9 @@ out
 .turbo
 apps/*/dist
 apps/*/dist-electron
+apps/tauri/src-tauri/binaries/antirsi-sidecar-*
+apps/tauri/src-tauri/gen
+apps/tauri/src-tauri/target
 apps/desktop/.electron-runtime
 artifacts
 # Exclude any *.tsbuildinfo file, including tsconfig.tsbuildinfo

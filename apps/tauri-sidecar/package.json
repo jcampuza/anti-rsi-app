@@ -1,0 +1,9 @@
+{
+  "name": "@antirsi/tauri-sidecar",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@antirsi/core": "workspace:*",
+    "@antirsi/server": "workspace:*"
+  }
+}

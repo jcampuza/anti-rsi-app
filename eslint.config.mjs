@@ -1,16 +1,9 @@
-import { defineConfig } from "eslint/config"
-import tseslint from "typescript-eslint"
+import { defineConfig } from "eslint/config";
+import tseslint from "typescript-eslint";
 
 export default defineConfig(
   {
-    ignores: [
-      "**/node_modules",
-      "**/dist",
-      "**/dist-electron",
-      "**/out",
-      ".turbo",
-      "artifacts",
-    ],
+    ignores: ["**/node_modules", "**/dist", "**/out", ".turbo", "artifacts"],
   },
   ...tseslint.configs.recommended,
   {
@@ -25,4 +18,4 @@ export default defineConfig(
       "@typescript-eslint/explicit-function-return-type": "off",
     },
   },
-)
+);

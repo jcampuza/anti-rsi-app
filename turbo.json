@@ -1,17 +1,10 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "globalEnv": [
-    "ANTIRSI_RENDERER_URL",
-    "ELECTRON_RENDERER_PORT",
-    "HOST",
-    "PORT",
-    "VITE_API_BASE_URL",
-    "VITE_DEV_SERVER_URL"
-  ],
+  "globalEnv": ["HOST", "PORT", "VITE_API_BASE_URL"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**", "dist-electron/**"]
+      "outputs": ["dist/**"]
     },
     "dev": {
       "cache": false,

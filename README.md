@@ -1,13 +1,13 @@
 # AntiRSI
 
-AntiRSI is now organized as a Bun workspace monorepo:
+AntiRSI is a macOS-focused Tauri desktop app backed by a Bun workspace.
 
-The desktop app targets macOS only.
-
-- `apps/web` contains the React renderer app.
-- `apps/desktop` contains the Electron main process, preload bridge, desktop scripts, and packaging assets.
+- `apps/tauri` contains the native Tauri shell, macOS overlay window commands, icons, and bundle config.
+- `apps/tauri-sidecar` contains the Node sidecar that runs the AntiRSI engine and loopback HTTP API.
+- `apps/web` contains the Solid renderer app used by Tauri.
+- `apps/server` contains the loopback HTTP API shared by the sidecar.
 - `packages/core` contains platform-agnostic AntiRSI logic and store code.
-- `packages/contracts` contains IPC channels and bridge types shared by desktop and web.
+- `packages/contracts` contains shared event and runtime metadata types.
 
 ## Commands
 
@@ -17,26 +17,21 @@ bun run dev
 bun run lint
 bun run typecheck
 bun run test
-bun run build:desktop
-bun run dist:desktop:mac
+bun run build
+bun run package
 ```
+
+`bun run dev` starts the Tauri app. `bun run package` builds the Tauri bundle; macOS artifacts are written under `apps/tauri/src-tauri/target/release/bundle`.
 
 ## Layout
 
 ```text
 apps/
-  desktop/
+  server/
+  tauri/
+  tauri-sidecar/
   web/
 packages/
   contracts/
   core/
-scripts/
-  build-desktop-artifact.ts
-  dev-runner.ts
 ```
-
-## Notes
-
-- The desktop preload bridge is located at `apps/desktop/src/preload.ts`.
-- Desktop packaging assets live in `apps/desktop/resources`.
-- Desktop artifact packaging is staged by `scripts/build-desktop-artifact.ts`.
