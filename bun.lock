@@ -46,6 +46,7 @@
       "dependencies": {
         "@antirsi/core": "workspace:*",
         "@antirsi/server": "workspace:*",
+        "@antirsi/utils": "workspace:*",
       },
     },
     "apps/web": {
@@ -81,6 +82,9 @@
         "zod": "^4.1.12",
       },
     },
+    "packages/utils": {
+      "name": "@antirsi/utils",
+    },
   },
   "packages": {
     "@antirsi/contracts": ["@antirsi/contracts@workspace:packages/contracts"],
@@ -92,6 +96,8 @@
     "@antirsi/tauri": ["@antirsi/tauri@workspace:apps/tauri"],
 
     "@antirsi/tauri-sidecar": ["@antirsi/tauri-sidecar@workspace:apps/tauri-sidecar"],
+
+    "@antirsi/utils": ["@antirsi/utils@workspace:packages/utils"],
 
     "@antirsi/web": ["@antirsi/web@workspace:apps/web"],
 

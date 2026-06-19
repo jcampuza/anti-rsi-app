@@ -1,6 +1,10 @@
 use std::{fs, sync::Mutex};
 
-use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder};
+use tauri::{
+    menu::{Menu, MenuItem},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder, WindowEvent,
+};
 use tauri_plugin_shell::{
     process::{CommandChild, CommandEvent},
     ShellExt,
@@ -8,6 +12,8 @@ use tauri_plugin_shell::{
 
 const API_PORT: &str = "56321";
 const OVERLAY_LABEL_PREFIX: &str = "overlay-";
+const MAIN_WINDOW_LABEL: &str = "main";
+const TRAY_ID: &str = "antirsi-tray";
 
 struct SidecarState {
     child: Mutex<Option<CommandChild>>,
@@ -36,11 +42,12 @@ fn show_break_overlay(app: AppHandle, kind: String) -> Result<(), String> {
 
     hide_break_overlay(app.clone())?;
 
-    #[cfg(target_os = "macos")]
     app.set_activation_policy(tauri::ActivationPolicy::Accessory)
         .map_err(|error| error.to_string())?;
 
-    let monitors = app.available_monitors().map_err(|error| error.to_string())?;
+    let monitors = app
+        .available_monitors()
+        .map_err(|error| error.to_string())?;
     for (index, monitor) in monitors.iter().enumerate() {
         let label = format!("{OVERLAY_LABEL_PREFIX}{index}");
         let position = monitor.position();
@@ -91,20 +98,16 @@ fn hide_break_overlay(app: AppHandle) -> Result<(), String> {
         }
     }
 
-    #[cfg(target_os = "macos")]
-    app.set_activation_policy(tauri::ActivationPolicy::Regular)
+    app.set_activation_policy(tauri::ActivationPolicy::Accessory)
         .map_err(|error| error.to_string())?;
 
     Ok(())
 }
 
-#[cfg(target_os = "macos")]
 fn set_break_overlay_native_level<R: tauri::Runtime>(
     window: &tauri::WebviewWindow<R>,
 ) -> Result<(), String> {
-    use objc2_app_kit::{
-        NSWindow, NSWindowCollectionBehavior, NSScreenSaverWindowLevel,
-    };
+    use objc2_app_kit::{NSScreenSaverWindowLevel, NSWindow, NSWindowCollectionBehavior};
 
     let ns_window = window.ns_window().map_err(|error| error.to_string())?;
     if ns_window.is_null() {
@@ -125,10 +128,42 @@ fn set_break_overlay_native_level<R: tauri::Runtime>(
     Ok(())
 }
 
-#[cfg(not(target_os = "macos"))]
-fn set_break_overlay_native_level<R: tauri::Runtime>(
-    _window: &tauri::WebviewWindow<R>,
-) -> Result<(), String> {
+fn show_main_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
+        let _ = app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+    }
+}
+
+fn create_tray(app: &mut tauri::App) -> tauri::Result<()> {
+    let open = MenuItem::with_id(app, "open", "Open Anti RSI", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "Quit Anti RSI", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&open, &quit])?;
+    let icon =
+        tauri::image::Image::from_bytes(include_bytes!("../icons/icon-menubarTemplate.png"))?;
+
+    TrayIconBuilder::with_id(TRAY_ID)
+        .icon(icon)
+        .icon_as_template(true)
+        .tooltip("Anti RSI")
+        .menu(&menu)
+        .show_menu_on_left_click(false)
+        .on_tray_icon_event(|tray, event| {
+            let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            else {
+                return;
+            };
+
+            show_main_window(&tray.app_handle());
+        })
+        .build(app)?;
+
     Ok(())
 }
 
@@ -137,10 +172,12 @@ fn spawn_sidecar(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>>
     fs::create_dir_all(&app_data_dir)?;
 
     let user_data_dir = app_data_dir.to_string_lossy().to_string();
-    let command = app
-        .shell()
-        .sidecar("antirsi-sidecar")?
-        .args(["--port", API_PORT, "--user-data-dir", user_data_dir.as_str()]);
+    let command = app.shell().sidecar("antirsi-sidecar")?.args([
+        "--port",
+        API_PORT,
+        "--user-data-dir",
+        user_data_dir.as_str(),
+    ]);
     let (mut rx, child) = command.spawn()?;
 
     app.manage(SidecarState {
@@ -176,8 +213,25 @@ pub fn run() {
             hide_break_overlay,
         ])
         .setup(|app| {
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+            create_tray(app)?;
             spawn_sidecar(app)?;
             Ok(())
+        })
+        .on_menu_event(|app, event| match event.id().as_ref() {
+            "open" => show_main_window(app),
+            "quit" => app.exit(0),
+            _ => {}
+        })
+        .on_window_event(|window, event| {
+            if window.label() != MAIN_WINDOW_LABEL {
+                return;
+            }
+
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                let _ = window.hide();
+            }
         })
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

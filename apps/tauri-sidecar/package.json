@@ -2,8 +2,12 @@
   "name": "@antirsi/tauri-sidecar",
   "private": true,
   "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
   "dependencies": {
     "@antirsi/core": "workspace:*",
-    "@antirsi/server": "workspace:*"
+    "@antirsi/server": "workspace:*",
+    "@antirsi/utils": "workspace:*"
   }
 }
