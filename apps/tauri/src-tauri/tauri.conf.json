@@ -10,6 +10,7 @@
     "beforeBuildCommand": "bun run build:sidecar && bun run build:web"
   },
   "app": {
+    "macOSPrivateApi": true,
     "windows": [
       {
         "label": "main",

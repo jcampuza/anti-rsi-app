@@ -11,7 +11,7 @@ interface BreakOverlayProps {
 }
 
 const overlayShellClassName =
-  "fixed inset-0 flex flex-col items-center justify-center gap-4 bg-black/70 px-10 py-10 text-foreground backdrop-blur-xl";
+  "fixed inset-0 flex flex-col items-center justify-center gap-4 bg-black/55 px-10 py-10 text-foreground";
 
 const overlayCardClassName =
   "flex max-w-lg flex-col gap-6 rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(20,22,29,0.96),rgba(10,11,15,0.96))] px-8 py-10 text-center shadow-[0_28px_80px_rgba(0,0,0,0.5)] ring-1 ring-white/[0.05]";

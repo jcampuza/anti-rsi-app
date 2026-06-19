@@ -75,6 +75,7 @@ fn show_break_overlay(app: AppHandle, kind: String) -> Result<(), String> {
                 size.height as f64 / scale_factor,
             )
             .decorations(false)
+            .transparent(true)
             .resizable(false)
             .maximizable(false)
             .minimizable(false)
