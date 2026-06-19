@@ -19,6 +19,11 @@ struct SidecarState {
     child: Mutex<Option<CommandChild>>,
 }
 
+#[derive(Default)]
+struct BreakFocusState {
+    previous_frontmost_pid: Mutex<Option<i32>>,
+}
+
 #[tauri::command]
 fn api_base_url() -> String {
     format!("http://127.0.0.1:{API_PORT}/")
@@ -40,7 +45,11 @@ fn show_break_overlay(app: AppHandle, kind: String) -> Result<(), String> {
         _ => return Err(format!("unsupported break overlay kind: {kind}")),
     };
 
-    hide_break_overlay(app.clone())?;
+    if !has_break_overlay(&app) {
+        remember_frontmost_application(&app);
+    }
+
+    close_break_overlays(&app)?;
 
     app.set_activation_policy(tauri::ActivationPolicy::Accessory)
         .map_err(|error| error.to_string())?;
@@ -92,17 +101,90 @@ fn show_break_overlay(app: AppHandle, kind: String) -> Result<(), String> {
 
 #[tauri::command]
 fn hide_break_overlay(app: AppHandle) -> Result<(), String> {
+    close_break_overlays(&app)?;
+
+    app.set_activation_policy(tauri::ActivationPolicy::Accessory)
+        .map_err(|error| error.to_string())?;
+
+    restore_previous_frontmost_application(&app);
+
+    Ok(())
+}
+
+fn has_break_overlay(app: &AppHandle) -> bool {
+    app.webview_windows()
+        .into_values()
+        .any(|window| window.label().starts_with(OVERLAY_LABEL_PREFIX))
+}
+
+fn close_break_overlays(app: &AppHandle) -> Result<(), String> {
     for window in app.webview_windows().into_values() {
         if window.label().starts_with(OVERLAY_LABEL_PREFIX) {
             window.close().map_err(|error| error.to_string())?;
         }
     }
 
-    app.set_activation_policy(tauri::ActivationPolicy::Accessory)
-        .map_err(|error| error.to_string())?;
-
     Ok(())
 }
+
+#[cfg(target_os = "macos")]
+fn remember_frontmost_application(app: &AppHandle) {
+    use objc2_app_kit::{NSRunningApplication, NSWorkspace};
+
+    let previous_pid = NSWorkspace::sharedWorkspace()
+        .frontmostApplication()
+        .map(|frontmost_application| frontmost_application.processIdentifier())
+        .filter(|pid| {
+            *pid > 0 && *pid != NSRunningApplication::currentApplication().processIdentifier()
+        });
+
+    if let Some(state) = app.try_state::<BreakFocusState>() {
+        if let Ok(mut stored_pid) = state.previous_frontmost_pid.lock() {
+            *stored_pid = previous_pid;
+        }
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn remember_frontmost_application(_app: &AppHandle) {}
+
+#[cfg(target_os = "macos")]
+fn restore_previous_frontmost_application(app: &AppHandle) {
+    use objc2_app_kit::{NSApplicationActivationOptions, NSRunningApplication};
+
+    let previous_pid = app.try_state::<BreakFocusState>().and_then(|state| {
+        state
+            .previous_frontmost_pid
+            .lock()
+            .ok()
+            .and_then(|mut pid| pid.take())
+    });
+
+    let Some(previous_pid) = previous_pid else {
+        return;
+    };
+
+    let current_pid = NSRunningApplication::currentApplication().processIdentifier();
+    if previous_pid <= 0 || previous_pid == current_pid {
+        return;
+    }
+
+    let Some(previous_application) =
+        NSRunningApplication::runningApplicationWithProcessIdentifier(previous_pid)
+    else {
+        return;
+    };
+
+    if previous_application.isTerminated() {
+        return;
+    }
+
+    let _ = previous_application.unhide();
+    let _ = previous_application.activateWithOptions(NSApplicationActivationOptions::empty());
+}
+
+#[cfg(not(target_os = "macos"))]
+fn restore_previous_frontmost_application(_app: &AppHandle) {}
 
 fn set_break_overlay_native_level<R: tauri::Runtime>(
     window: &tauri::WebviewWindow<R>,
@@ -214,6 +296,7 @@ pub fn run() {
         ])
         .setup(|app| {
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+            app.manage(BreakFocusState::default());
             create_tray(app)?;
             spawn_sidecar(app)?;
             Ok(())
