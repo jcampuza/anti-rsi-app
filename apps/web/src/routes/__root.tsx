@@ -1,4 +1,5 @@
 import { Outlet, createRootRoute } from "@tanstack/solid-router";
+import { createEffect } from "solid-js";
 import { BreakOverlay } from "~/components/BreakOverlay";
 import { Header } from "~/components/Header";
 import {
@@ -7,6 +8,7 @@ import {
   useAntiRsi,
 } from "~/context/antirsi";
 import { useOverlayMode } from "~/hooks/useOverlayMode";
+import { hideTauriBreakOverlay } from "~/lib/tauri-overlay-manager";
 import "~/assets/tailwind.css";
 
 type OverlayKind = "mini" | "work";
@@ -23,6 +25,12 @@ const getOverlayKind = (): OverlayKind | null => {
 function OverlayWindow(props: { kind: OverlayKind }) {
   const antirsi = useAntiRsi();
   useOverlayMode({ isEnabled: true });
+  createEffect(() => {
+    if (antirsi.snapshot().state === "normal") {
+      hideTauriBreakOverlay();
+    }
+  });
+
   const overlayProps =
     props.kind === "work"
       ? {
