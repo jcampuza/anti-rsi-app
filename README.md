@@ -2,6 +2,8 @@
 
 AntiRSI is a macOS-focused Tauri desktop app backed by a Bun workspace.
 
+Distribution builds target Apple Silicon Macs only. Intel Macs are not supported.
+
 - `apps/tauri` contains the native Tauri shell, macOS overlay window commands, icons, and bundle config.
 - `apps/tauri-sidecar` contains the Node sidecar that runs the AntiRSI engine and loopback HTTP API.
 - `apps/web` contains the Solid renderer app used by Tauri.
