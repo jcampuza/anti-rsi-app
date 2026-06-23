@@ -56,7 +56,7 @@ describe("work break disabling", () => {
       dtSeconds: config.work.intervalSeconds + 1,
     })
 
-    expect(nextState.status).toBe("in-mini")
+    expect(nextState.status).toBe("pending-mini")
     expect(nextState.timings.workElapsed).toBe(0)
     expect(nextState.timings.workTaking).toBe(0)
   })
@@ -101,5 +101,99 @@ describe("natural idle breaks", () => {
     expect(nextState.timings.miniElapsed).toBe(initialState.timings.miniElapsed)
     expect(nextState.timings.workElapsed).toBe(initialState.timings.workElapsed)
     expect(nextState.timings.miniTaking).toBe(5)
+  })
+})
+
+describe("pending breaks", () => {
+  it("waits for overlay acknowledgement before advancing mini break duration", () => {
+    const config = defaultConfig()
+    const initialState = {
+      ...createInitialState(),
+      timings: {
+        miniElapsed: config.mini.intervalSeconds - 0.25,
+        miniTaking: 0,
+        workElapsed: 0,
+        workTaking: 0,
+      },
+    }
+
+    const pendingState = reducer(initialState, {
+      type: "TICK",
+      idleSeconds: 0,
+      dtSeconds: 0.5,
+    })
+    expect(pendingState.status).toBe("pending-mini")
+    expect(pendingState.timings.miniTaking).toBe(0)
+
+    const stillPendingState = reducer(pendingState, {
+      type: "TICK",
+      idleSeconds: 0,
+      dtSeconds: 5,
+    })
+    expect(stillPendingState.status).toBe("pending-mini")
+    expect(stillPendingState.timings.miniTaking).toBe(0)
+
+    const activeState = reducer(stillPendingState, {
+      type: "ACK_BREAK_VISIBLE",
+      breakType: "mini",
+    })
+    expect(activeState.status).toBe("in-mini")
+    expect(activeState.timings.miniTaking).toBe(0)
+  })
+
+  it("can wait for a pause in activity before entering a pending break", () => {
+    const config = defaultConfig()
+    const initialState = createInitialState({
+      waitForActivityPauseBeforeBreak: true,
+      breakStartGraceSeconds: 2,
+      maxBreakStartDelaySeconds: 30,
+    })
+    const dueState = {
+      ...initialState,
+      timings: {
+        ...initialState.timings,
+        miniElapsed: config.mini.intervalSeconds - 0.25,
+      },
+    }
+
+    const waitingState = reducer(dueState, {
+      type: "TICK",
+      idleSeconds: 0,
+      dtSeconds: 0.5,
+    })
+    expect(waitingState.status).toBe("normal")
+    expect(waitingState.timings.miniElapsed).toBe(config.mini.intervalSeconds)
+    expect(waitingState.breakStartDelayElapsed).toBe(0.5)
+
+    const pendingState = reducer(waitingState, {
+      type: "TICK",
+      idleSeconds: 2,
+      dtSeconds: 0.5,
+    })
+    expect(pendingState.status).toBe("pending-mini")
+  })
+
+  it("forces a pending break after the configured maximum activity delay", () => {
+    const config = defaultConfig()
+    const initialState = createInitialState({
+      waitForActivityPauseBeforeBreak: true,
+      breakStartGraceSeconds: 2,
+      maxBreakStartDelaySeconds: 3,
+    })
+    const waitingState = {
+      ...initialState,
+      timings: {
+        ...initialState.timings,
+        miniElapsed: config.mini.intervalSeconds,
+      },
+      breakStartDelayElapsed: 2.5,
+    }
+
+    const pendingState = reducer(waitingState, {
+      type: "TICK",
+      idleSeconds: 0,
+      dtSeconds: 0.5,
+    })
+    expect(pendingState.status).toBe("pending-mini")
   })
 })

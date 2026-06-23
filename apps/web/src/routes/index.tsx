@@ -11,7 +11,10 @@ export const Route = createFileRoute("/")({
 
 function HomePage() {
   const antirsi = useAntiRsi();
-  const timings = useInterpolatedTimings(antirsi.snapshot);
+  const timings = useInterpolatedTimings(
+    antirsi.snapshot,
+    antirsi.snapshotReceivedAt,
+  );
 
   const miniElapsed = () => timings().miniElapsed;
   const workElapsed = () => timings().workElapsed;
@@ -27,7 +30,7 @@ function HomePage() {
   });
 
   return (
-    <div class="app-region-drag flex min-h-[520px] flex-col gap-6 px-7 py-8">
+    <div class="app-region-drag flex min-h-[330px] flex-col gap-4 px-4 py-5 sm:gap-5 sm:px-6 sm:py-6">
       <Show when={antirsi.snapshot().paused && antirsi.processes().length > 0}>
         <section class="rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3">
           <p class="text-sm font-semibold text-accent">
@@ -48,7 +51,7 @@ function HomePage() {
       <section
         class="grid gap-5 app-region-no-drag"
         style={{
-          "grid-template-columns": "repeat(auto-fit, minmax(280px, 1fr))",
+          "grid-template-columns": "repeat(auto-fit, minmax(min(260px, 100%), 1fr))",
         }}
       >
         <BreakStatusCard
@@ -67,7 +70,7 @@ function HomePage() {
         </Show>
       </section>
 
-      <div class="mt-2 border-t border-white/[0.08] pt-6">
+      <div class="mt-1 border-t border-white/[0.08] pt-4 sm:pt-5">
         <HeaderActions
           api={antirsi.api}
           config={antirsi.config()}

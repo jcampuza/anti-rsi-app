@@ -5,6 +5,7 @@ export interface StoreState {
   timings: AntiRsiTimings
   lastIdleSeconds: number
   lastUpdatedSeconds: number
+  breakStartDelayElapsed: number
   config: AntiRsiConfig
   userPaused: boolean
   inhibitors: Set<string>

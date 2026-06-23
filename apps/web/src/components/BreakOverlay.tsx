@@ -6,6 +6,7 @@ import { Button } from "~/components/ui/Button";
 interface BreakOverlayProps {
   snapshot: AntiRsiSnapshot;
   config: AntiRsiConfig;
+  timings?: AntiRsiSnapshot["timings"];
   onPostpone?: () => void;
   onSkip?: () => void;
 }
@@ -19,9 +20,15 @@ const overlayCardClassName =
 export const BreakOverlay: Component<BreakOverlayProps> = (props) => {
   const breakState = () => props.snapshot.state;
   const isActiveBreak = createMemo(
-    () => breakState() === "in-mini" || breakState() === "in-work",
+    () =>
+      breakState() === "pending-mini" ||
+      breakState() === "pending-work" ||
+      breakState() === "in-mini" ||
+      breakState() === "in-work",
   );
-  const isWorkBreak = createMemo(() => breakState() === "in-work");
+  const isWorkBreak = createMemo(
+    () => breakState() === "pending-work" || breakState() === "in-work",
+  );
   const breakDuration = createMemo(() =>
     isWorkBreak()
       ? props.config.work.durationSeconds
@@ -29,8 +36,8 @@ export const BreakOverlay: Component<BreakOverlayProps> = (props) => {
   );
   const elapsed = createMemo(() =>
     isWorkBreak()
-      ? props.snapshot.timings.workTaking
-      : props.snapshot.timings.miniTaking,
+      ? (props.timings ?? props.snapshot.timings).workTaking
+      : (props.timings ?? props.snapshot.timings).miniTaking,
   );
   const remaining = createMemo(() => Math.max(breakDuration() - elapsed(), 0));
 
@@ -59,7 +66,7 @@ export const BreakOverlay: Component<BreakOverlayProps> = (props) => {
               Remaining
             </span>
             <div class="text-[clamp(2.4rem,6vw,3.75rem)] font-medium leading-none tracking-[-0.05em] text-white/95 tabular-nums">
-              {formatSeconds(remaining())}
+              {formatSeconds(Math.ceil(remaining()))}
             </div>
           </div>
 

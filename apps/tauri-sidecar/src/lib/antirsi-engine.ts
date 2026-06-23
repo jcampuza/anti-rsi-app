@@ -48,7 +48,12 @@ const configsEqual = (left: AntiRsiConfig, right: AntiRsiConfig): boolean =>
   workConfigsEqual(left.work, right.work) &&
   left.tickIntervalMs === right.tickIntervalMs &&
   left.naturalBreakContinuationWindowSeconds ===
-    right.naturalBreakContinuationWindowSeconds;
+    right.naturalBreakContinuationWindowSeconds &&
+  left.breakWarningLeadSeconds === right.breakWarningLeadSeconds &&
+  left.waitForActivityPauseBeforeBreak ===
+    right.waitForActivityPauseBeforeBreak &&
+  left.breakStartGraceSeconds === right.breakStartGraceSeconds &&
+  left.maxBreakStartDelaySeconds === right.maxBreakStartDelaySeconds;
 
 export type IdleTimeProvider = () => number;
 

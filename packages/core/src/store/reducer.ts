@@ -6,7 +6,6 @@ import {
   type SetConfigAction,
   type SetProcessesAction,
   type SetUserPausedAction,
-  type StartWorkBreakAction,
   type TickAction,
 } from "./actions"
 import { type StoreState } from "./state"
@@ -35,6 +34,12 @@ const applyConfigPatch = (
   tickIntervalMs: patch.tickIntervalMs ?? current.tickIntervalMs,
   naturalBreakContinuationWindowSeconds:
     patch.naturalBreakContinuationWindowSeconds ?? current.naturalBreakContinuationWindowSeconds,
+  breakWarningLeadSeconds: patch.breakWarningLeadSeconds ?? current.breakWarningLeadSeconds,
+  waitForActivityPauseBeforeBreak:
+    patch.waitForActivityPauseBeforeBreak ?? current.waitForActivityPauseBeforeBreak,
+  breakStartGraceSeconds: patch.breakStartGraceSeconds ?? current.breakStartGraceSeconds,
+  maxBreakStartDelaySeconds:
+    patch.maxBreakStartDelaySeconds ?? current.maxBreakStartDelaySeconds,
 })
 
 const configsEqual = (left: AntiRsiConfig, right: AntiRsiConfig): boolean =>
@@ -45,7 +50,11 @@ const configsEqual = (left: AntiRsiConfig, right: AntiRsiConfig): boolean =>
   left.work.durationSeconds === right.work.durationSeconds &&
   left.work.postponeSeconds === right.work.postponeSeconds &&
   left.tickIntervalMs === right.tickIntervalMs &&
-  left.naturalBreakContinuationWindowSeconds === right.naturalBreakContinuationWindowSeconds
+  left.naturalBreakContinuationWindowSeconds === right.naturalBreakContinuationWindowSeconds &&
+  left.breakWarningLeadSeconds === right.breakWarningLeadSeconds &&
+  left.waitForActivityPauseBeforeBreak === right.waitForActivityPauseBeforeBreak &&
+  left.breakStartGraceSeconds === right.breakStartGraceSeconds &&
+  left.maxBreakStartDelaySeconds === right.maxBreakStartDelaySeconds
 
 const shouldResetStateForConfigChange = (current: AntiRsiConfig, next: AntiRsiConfig): boolean =>
   current.mini.intervalSeconds !== next.mini.intervalSeconds ||
@@ -55,13 +64,18 @@ const shouldResetStateForConfigChange = (current: AntiRsiConfig, next: AntiRsiCo
   current.work.durationSeconds !== next.work.durationSeconds ||
   current.work.postponeSeconds !== next.work.postponeSeconds ||
   current.tickIntervalMs !== next.tickIntervalMs ||
-  current.naturalBreakContinuationWindowSeconds !== next.naturalBreakContinuationWindowSeconds
+  current.naturalBreakContinuationWindowSeconds !== next.naturalBreakContinuationWindowSeconds ||
+  current.breakWarningLeadSeconds !== next.breakWarningLeadSeconds ||
+  current.waitForActivityPauseBeforeBreak !== next.waitForActivityPauseBeforeBreak ||
+  current.breakStartGraceSeconds !== next.breakStartGraceSeconds ||
+  current.maxBreakStartDelaySeconds !== next.maxBreakStartDelaySeconds
 
 const resetStateWithConfig = (state: StoreState, config: AntiRsiConfig): StoreState => ({
   status: "normal",
   timings: createTimings(),
   lastIdleSeconds: 0,
   lastUpdatedSeconds: 0,
+  breakStartDelayElapsed: 0,
   config,
   userPaused: state.userPaused,
   inhibitors: new Set(state.inhibitors),
@@ -105,13 +119,22 @@ const setProcesses = (state: StoreState, action: SetProcessesAction): StoreState
   return { ...state, processes: [...newProcesses] }
 }
 
+const enterPendingMiniBreak = (state: StoreState): StoreState => {
+  const timings = {
+    ...state.timings,
+    miniElapsed: state.config.mini.intervalSeconds,
+    miniTaking: 0,
+  }
+  return { ...state, status: "pending-mini", timings, breakStartDelayElapsed: 0 }
+}
+
 const enterMiniBreak = (state: StoreState): StoreState => {
   const timings = {
     ...state.timings,
     miniElapsed: state.config.mini.intervalSeconds,
     miniTaking: 0,
   }
-  return { ...state, status: "in-mini", timings }
+  return { ...state, status: "in-mini", timings, breakStartDelayElapsed: 0 }
 }
 
 const leaveMiniBreak = (state: StoreState): StoreState => {
@@ -120,7 +143,22 @@ const leaveMiniBreak = (state: StoreState): StoreState => {
     miniElapsed: 0,
     miniTaking: state.config.mini.durationSeconds,
   }
-  return { ...state, status: "normal", timings }
+  return { ...state, status: "normal", timings, breakStartDelayElapsed: 0 }
+}
+
+const enterPendingWorkBreak = (state: StoreState): StoreState => {
+  if (!state.config.work.enabled) {
+    return state
+  }
+
+  const timings = {
+    ...state.timings,
+    workElapsed: state.config.work.intervalSeconds,
+    workTaking: 0,
+    miniElapsed: 0,
+    miniTaking: state.config.mini.durationSeconds,
+  }
+  return { ...state, status: "pending-work", timings, breakStartDelayElapsed: 0 }
 }
 
 const enterWorkBreak = (state: StoreState, naturalContinuation: boolean): StoreState => {
@@ -135,7 +173,7 @@ const enterWorkBreak = (state: StoreState, naturalContinuation: boolean): StoreS
     miniElapsed: 0,
     miniTaking: state.config.mini.durationSeconds,
   }
-  return { ...state, status: "in-work", timings }
+  return { ...state, status: "in-work", timings, breakStartDelayElapsed: 0 }
 }
 
 const leaveWorkBreak = (state: StoreState): StoreState => {
@@ -146,7 +184,7 @@ const leaveWorkBreak = (state: StoreState): StoreState => {
     workElapsed: 0,
     workTaking: state.config.work.durationSeconds,
   }
-  return { ...state, status: "normal", timings }
+  return { ...state, status: "normal", timings, breakStartDelayElapsed: 0 }
 }
 
 const resetTimings = (state: StoreState): StoreState => ({
@@ -155,6 +193,7 @@ const resetTimings = (state: StoreState): StoreState => ({
   timings: createTimings(),
   lastIdleSeconds: 0,
   lastUpdatedSeconds: 0,
+  breakStartDelayElapsed: 0,
 })
 
 const postponeWorkBreak = (state: StoreState): StoreState => {
@@ -174,11 +213,25 @@ const postponeWorkBreak = (state: StoreState): StoreState => {
     workElapsed,
     workTaking: 0,
   }
-  return { ...state, status: "normal", timings }
+  return { ...state, status: "normal", timings, breakStartDelayElapsed: 0 }
 }
 
 const shouldResetMiniFromNaturalBreak = (idleSeconds: number, config: AntiRsiConfig): boolean =>
   idleSeconds >= config.naturalBreakContinuationWindowSeconds
+
+const shouldWaitForActivityPause = (
+  state: StoreState,
+  action: TickAction,
+  breakStartDelayElapsed: number,
+): boolean => {
+  if (!state.config.waitForActivityPauseBeforeBreak) {
+    return false
+  }
+  if (action.idleSeconds >= state.config.breakStartGraceSeconds) {
+    return false
+  }
+  return breakStartDelayElapsed < state.config.maxBreakStartDelaySeconds
+}
 
 const resetMiniTimersFromNaturalBreak = (
   timings: AntiRsiTimings,
@@ -205,6 +258,7 @@ const tick = (state: StoreState, action: TickAction): StoreState => {
     timings,
     lastIdleSeconds: action.idleSeconds,
     lastUpdatedSeconds: state.lastUpdatedSeconds + delta,
+    breakStartDelayElapsed: 0,
   }
 
   if (state.status === "normal") {
@@ -242,14 +296,31 @@ const tick = (state: StoreState, action: TickAction): StoreState => {
       state.config.work.enabled &&
       next.timings.workElapsed >= state.config.work.intervalSeconds
     ) {
-      return enterWorkBreak({ ...next, timings: next.timings }, false)
+      const breakStartDelayElapsed = state.breakStartDelayElapsed + delta
+      if (shouldWaitForActivityPause(state, action, breakStartDelayElapsed)) {
+        return { ...next, breakStartDelayElapsed }
+      }
+      return enterPendingWorkBreak({ ...next, timings: next.timings })
     }
 
     if (!naturalReset && next.timings.miniElapsed >= state.config.mini.intervalSeconds) {
-      return enterMiniBreak({ ...next, timings: next.timings })
+      const breakStartDelayElapsed = state.breakStartDelayElapsed + delta
+      if (shouldWaitForActivityPause(state, action, breakStartDelayElapsed)) {
+        return { ...next, breakStartDelayElapsed }
+      }
+      return enterPendingMiniBreak({ ...next, timings: next.timings })
     }
 
-    return { ...next, timings: next.timings }
+    return { ...next, timings: next.timings, breakStartDelayElapsed: 0 }
+  }
+
+  if (state.status === "pending-mini" || state.status === "pending-work") {
+    return {
+      ...next,
+      status: state.status,
+      timings: state.timings,
+      breakStartDelayElapsed: state.breakStartDelayElapsed,
+    }
   }
 
   if (state.status === "in-mini") {
@@ -266,7 +337,7 @@ const tick = (state: StoreState, action: TickAction): StoreState => {
     }
 
     if (state.config.work.enabled && timings.workElapsed >= state.config.work.intervalSeconds) {
-      return enterWorkBreak({ ...next, timings }, false)
+      return enterPendingWorkBreak({ ...next, timings })
     }
 
     if (timings.miniTaking >= state.config.mini.durationSeconds) {
@@ -298,6 +369,7 @@ export const createInitialState = (initialConfig?: Partial<AntiRsiConfig>): Stor
     timings: createTimings(),
     lastIdleSeconds: 0,
     lastUpdatedSeconds: 0,
+    breakStartDelayElapsed: 0,
     config,
     userPaused: false,
     inhibitors: new Set<string>(),
@@ -326,11 +398,20 @@ export const reducer = (state: StoreState, action: Action): StoreState => {
     case "RESET_TIMINGS":
       return resetTimings(state)
     case "START_MINI_BREAK":
-      return enterMiniBreak(state)
+      return enterPendingMiniBreak(state)
     case "END_MINI_BREAK":
       return leaveMiniBreak(state)
     case "START_WORK_BREAK":
-      return enterWorkBreak(state, (action as StartWorkBreakAction).naturalContinuation)
+      return enterPendingWorkBreak(state)
+    case "ACK_BREAK_VISIBLE": {
+      if (action.breakType === "mini" && state.status === "pending-mini") {
+        return enterMiniBreak(state)
+      }
+      if (action.breakType === "work" && state.status === "pending-work") {
+        return enterWorkBreak(state, false)
+      }
+      return state
+    }
     case "END_WORK_BREAK":
       return leaveWorkBreak(state)
     case "POSTPONE_WORK_BREAK":

@@ -1,4 +1,9 @@
-import { API_ROUTES, type ApiErrorBody, type MainEvent } from '@antirsi/contracts';
+import {
+  API_ROUTES,
+  type ApiErrorBody,
+  type MainEvent,
+  type SnapshotEventMeta,
+} from '@antirsi/contracts';
 import {
   type Action,
   selectConfig,
@@ -10,6 +15,7 @@ import type { ApplyGlobalResponse } from 'hono/client';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { streamSSE } from 'hono/streaming';
+import { performance } from 'node:perf_hooks';
 
 import { LOOPBACK_ORIGIN_PATTERN } from './constants';
 
@@ -17,19 +23,35 @@ export interface ApiServerDeps {
   store: Store;
 }
 
-const buildInitEvent = (store: Store): MainEvent => ({
-  type: 'init',
-  config: selectConfig(store.getState()),
-  snapshot: selectSnapshot(store.getState()),
-  processes: selectProcesses(store.getState()),
-});
+type SnapshotMainEvent = Extract<
+  MainEvent,
+  { type: 'init' | 'antirsi' | 'timers-paused' | 'timers-resumed' }
+>;
 
 export function createApiApp(deps: ApiServerDeps) {
+  let sequence = 0;
   const subscribers = new Set<(event: MainEvent) => void>();
 
+  const nextMeta = (): SnapshotEventMeta => ({
+    sequence: ++sequence,
+    serverMonotonicMs: performance.now(),
+  });
+
+  const withMeta = <T extends SnapshotMainEvent>(event: T): T =>
+    ({ ...event, meta: nextMeta() }) as T;
+
+  const buildInitEvent = (): MainEvent =>
+    withMeta({
+      type: 'init',
+      config: selectConfig(deps.store.getState()),
+      snapshot: selectSnapshot(deps.store.getState()),
+      processes: selectProcesses(deps.store.getState()),
+    });
+
   const broadcast = (event: MainEvent): void => {
+    const eventWithFreshMeta = 'snapshot' in event ? withMeta(event) : event;
     for (const push of subscribers) {
-      push(event);
+      push(eventWithFreshMeta);
     }
   };
 
@@ -66,7 +88,7 @@ export function createApiApp(deps: ApiServerDeps) {
     })
     .get(API_ROUTES.EVENTS, (c) => {
       return streamSSE(c, async (stream) => {
-        await stream.writeSSE({ data: JSON.stringify(buildInitEvent(deps.store)) });
+        await stream.writeSSE({ data: JSON.stringify(buildInitEvent()) });
 
         const push = (event: MainEvent): void => {
           void stream.writeSSE({ data: JSON.stringify(event) });

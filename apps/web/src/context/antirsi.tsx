@@ -1,4 +1,4 @@
-import type { MainEvent } from "@antirsi/contracts";
+import type { MainEvent, SnapshotEventMeta } from "@antirsi/contracts";
 import type { AntiRsiConfig, AntiRsiSnapshot } from "@antirsi/core";
 import type { AntiRsiDesktopBridge } from "@antirsi/contracts";
 import { Loader2 } from "lucide-solid";
@@ -21,6 +21,8 @@ export type AntiRsiRendererApi = AntiRsiDesktopBridge;
 
 interface AntiRsiState {
   snapshot: AntiRsiSnapshot | undefined;
+  snapshotMeta: SnapshotEventMeta | undefined;
+  snapshotReceivedAt: number;
   config: AntiRsiConfig | undefined;
   processes: string[];
 }
@@ -32,6 +34,8 @@ interface AntiRsiBootstrapContextValue {
   loading: Accessor<boolean>;
   error: Accessor<unknown | undefined>;
   snapshot: Accessor<AntiRsiSnapshot | undefined>;
+  snapshotMeta: Accessor<SnapshotEventMeta | undefined>;
+  snapshotReceivedAt: Accessor<number>;
   config: Accessor<AntiRsiConfig | undefined>;
   processes: Accessor<string[]>;
 }
@@ -40,6 +44,8 @@ interface AntiRsiBootstrapContextValue {
 export interface AntiRsiContextValue {
   api: AntiRsiRendererApi;
   snapshot: Accessor<AntiRsiSnapshot>;
+  snapshotMeta: Accessor<SnapshotEventMeta | undefined>;
+  snapshotReceivedAt: Accessor<number>;
   config: Accessor<AntiRsiConfig>;
   processes: Accessor<string[]>;
 }
@@ -49,21 +55,44 @@ const AntiRsiContext = createContext<AntiRsiContextValue>();
 
 const applyMainEvent = (
   payload: MainEvent,
+  currentMeta: SnapshotEventMeta | undefined,
   setState: (patch: Partial<AntiRsiState>) => void,
 ): void => {
+  if ("snapshot" in payload) {
+    const nextMeta =
+      payload.meta ??
+      ({
+        sequence: (currentMeta?.sequence ?? 0) + 1,
+        serverMonotonicMs: performance.now(),
+      } satisfies SnapshotEventMeta);
+
+    if (currentMeta && nextMeta.sequence <= currentMeta.sequence) {
+      return;
+    }
+
+    const snapshotPatch = {
+      snapshot: payload.snapshot,
+      snapshotMeta: nextMeta,
+      snapshotReceivedAt: performance.now(),
+    };
+
+    switch (payload.type) {
+      case "init":
+        setState({
+          ...snapshotPatch,
+          config: payload.config,
+          processes: payload.processes,
+        });
+        return;
+      case "antirsi":
+      case "timers-paused":
+      case "timers-resumed":
+        setState(snapshotPatch);
+        return;
+    }
+  }
+
   switch (payload.type) {
-    case "init":
-      setState({
-        snapshot: payload.snapshot,
-        config: payload.config,
-        processes: payload.processes,
-      });
-      break;
-    case "antirsi":
-    case "timers-paused":
-    case "timers-resumed":
-      setState({ snapshot: payload.snapshot });
-      break;
     case "config-changed":
       setState({ config: payload.config });
       break;
@@ -75,9 +104,12 @@ const applyMainEvent = (
 
 export function AntiRsiProvider(props: ParentProps) {
   const api = resolveAntiRsiClient();
+  let latestSnapshotMeta: SnapshotEventMeta | undefined;
 
   const [state, setState] = createStore<AntiRsiState>({
     snapshot: undefined,
+    snapshotMeta: undefined,
+    snapshotReceivedAt: 0,
     config: undefined,
     processes: [],
   });
@@ -94,9 +126,13 @@ export function AntiRsiProvider(props: ParentProps) {
   createEffect(() => {
     const data = initial();
     if (!data) return;
+    if (state.snapshot !== undefined) return;
+    latestSnapshotMeta = undefined;
     setState(
       reconcile({
         snapshot: data.snapshot,
+        snapshotMeta: undefined,
+        snapshotReceivedAt: performance.now(),
         config: data.config,
         processes: data.processes,
       }),
@@ -104,8 +140,15 @@ export function AntiRsiProvider(props: ParentProps) {
   });
 
   createEffect(() => {
+    const applyStatePatch = (patch: Partial<AntiRsiState>): void => {
+      if (patch.snapshotMeta !== undefined) {
+        latestSnapshotMeta = patch.snapshotMeta;
+      }
+      setState(patch);
+    };
+
     const unsubscribe = api.subscribeAll((payload) => {
-      applyMainEvent(payload, (patch) => setState(patch));
+      applyMainEvent(payload, latestSnapshotMeta, applyStatePatch);
     });
     onCleanup(() => unsubscribe());
   });
@@ -126,6 +169,8 @@ export function AntiRsiProvider(props: ParentProps) {
     loading: () => initial.loading,
     error: () => initial.error,
     snapshot: () => state.snapshot,
+    snapshotMeta: () => state.snapshotMeta,
+    snapshotReceivedAt: () => state.snapshotReceivedAt,
     config: () => state.config,
     processes: () => state.processes,
   };
@@ -151,6 +196,8 @@ function AntiRsiReadyScope(props: ParentProps) {
       }
       return snapshot;
     },
+    snapshotMeta: parent.snapshotMeta,
+    snapshotReceivedAt: parent.snapshotReceivedAt,
     config: () => {
       const config = parent.config();
       if (config === undefined) {
@@ -173,7 +220,7 @@ function AntiRsiReadyScope(props: ParentProps) {
 function AntiRsiLoadingScreen() {
   return (
     <div
-      class="app-region-drag flex min-h-[520px] flex-col items-center justify-center gap-3 antirsi-bootstrap-enter"
+      class="app-region-drag flex min-h-[330px] flex-col items-center justify-center gap-3 antirsi-bootstrap-enter"
       role="status"
       aria-live="polite"
       aria-busy="true"
@@ -191,7 +238,7 @@ function AntiRsiErrorScreen(props: { error: unknown }) {
   };
 
   return (
-    <div class="app-region-drag flex min-h-[520px] flex-col items-center justify-center gap-2 px-7 text-center antirsi-bootstrap-enter">
+    <div class="app-region-drag flex min-h-[330px] flex-col items-center justify-center gap-2 px-4 text-center antirsi-bootstrap-enter sm:px-6">
       <p class="text-sm font-semibold text-destructive">
         Could not load AntiRSI
       </p>

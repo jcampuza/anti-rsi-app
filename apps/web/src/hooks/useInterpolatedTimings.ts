@@ -1,5 +1,11 @@
 import type { AntiRsiSnapshot } from "@antirsi/core";
-import { createEffect, createSignal, onCleanup, onMount, type Accessor } from "solid-js";
+import {
+  createEffect,
+  createSignal,
+  onCleanup,
+  onMount,
+  type Accessor,
+} from "solid-js";
 
 interface InterpolatedTimings {
   miniElapsed: number;
@@ -9,10 +15,47 @@ interface InterpolatedTimings {
 }
 
 const SNAP_THRESHOLD_SECONDS = 2;
-const DISPLAY_UPDATE_INTERVAL_MS = 1000;
+const DISPLAY_UPDATE_INTERVAL_MS = 250;
+
+export const projectTimings = (
+  snap: AntiRsiSnapshot,
+  receivedAt: number,
+  now: number,
+): InterpolatedTimings => {
+  const elapsedSinceSnapshot = Math.max(0, (now - receivedAt) / 1000);
+  const timings = { ...snap.timings };
+
+  if (!snap.timersRunning) {
+    return timings;
+  }
+
+  if (snap.state === "normal") {
+    timings.miniElapsed += elapsedSinceSnapshot;
+    timings.workElapsed += elapsedSinceSnapshot;
+    return timings;
+  }
+
+  if (snap.state === "in-mini") {
+    timings.workElapsed += elapsedSinceSnapshot;
+    if (snap.lastIdleSeconds >= 1) {
+      timings.miniTaking += elapsedSinceSnapshot;
+    }
+    return timings;
+  }
+
+  if (snap.state === "in-work") {
+    if (snap.lastIdleSeconds >= 4) {
+      timings.workTaking += elapsedSinceSnapshot;
+    }
+    return timings;
+  }
+
+  return timings;
+};
 
 export function useInterpolatedTimings(
   snapshot: Accessor<AntiRsiSnapshot | undefined>,
+  snapshotReceivedAt: Accessor<number>,
 ): Accessor<InterpolatedTimings> {
   const [interpolated, setInterpolated] = createSignal<InterpolatedTimings>({
     miniElapsed: 0,
@@ -24,48 +67,37 @@ export function useInterpolatedTimings(
   // Refs track timer state and current values without creating reactive dependencies.
   const timeoutIdRef = { current: undefined as number | undefined };
   const runningRef = { current: false };
-  const currentValuesRef = { current: { mini: 0, work: 0 } };
-  const lastServerTakingRef = {
-    current: { mini: undefined as number | undefined, work: undefined as number | undefined },
-  };
+  const currentTimingsRef = { current: interpolated() };
   const serverStateRef = {
     current: {
-      serverTimings: null as AntiRsiSnapshot["timings"] | null,
-      serverReceivedAt: 0,
-      timersRunning: true,
+      snapshot: null as AntiRsiSnapshot | null,
+      receivedAt: 0,
     },
   };
 
   // Update the non-reactive ref whenever the signal changes
   const updateCurrentRef = () => {
-    const vals = interpolated();
-    currentValuesRef.current.mini = vals.miniElapsed;
-    currentValuesRef.current.work = vals.workElapsed;
+    currentTimingsRef.current = interpolated();
   };
 
-  const publishCurrentTimings = (now = Date.now(), force = false) => {
+  const publishCurrentTimings = (now = performance.now(), force = false) => {
     const state = serverStateRef.current;
-    if (!state.serverTimings) {
+    if (!state.snapshot) {
       return;
     }
 
-    const elapsedSinceServer = state.timersRunning ? (now - state.serverReceivedAt) / 1000 : 0;
-    const newMini = state.serverTimings.miniElapsed + elapsedSinceServer;
-    const newWork = state.serverTimings.workElapsed + elapsedSinceServer;
+    const nextTimings = projectTimings(state.snapshot, state.receivedAt, now);
+    const currentTimings = currentTimingsRef.current;
 
     if (
       force ||
-      Math.abs(newMini - currentValuesRef.current.mini) >= 0.5 ||
-      Math.abs(newWork - currentValuesRef.current.work) >= 0.5
+      Math.abs(nextTimings.miniElapsed - currentTimings.miniElapsed) >= 0.5 ||
+      Math.abs(nextTimings.workElapsed - currentTimings.workElapsed) >= 0.5 ||
+      Math.abs(nextTimings.miniTaking - currentTimings.miniTaking) >= 0.25 ||
+      Math.abs(nextTimings.workTaking - currentTimings.workTaking) >= 0.25
     ) {
-      currentValuesRef.current.mini = newMini;
-      currentValuesRef.current.work = newWork;
-      setInterpolated({
-        miniElapsed: newMini,
-        workElapsed: newWork,
-        miniTaking: state.serverTimings.miniTaking,
-        workTaking: state.serverTimings.workTaking,
-      });
+      currentTimingsRef.current = nextTimings;
+      setInterpolated(nextTimings);
     }
   };
 
@@ -76,7 +108,7 @@ export function useInterpolatedTimings(
 
     timeoutIdRef.current = window.setTimeout(() => {
       timeoutIdRef.current = undefined;
-      publishCurrentTimings();
+      publishCurrentTimings(performance.now());
       scheduleNextTick();
     }, DISPLAY_UPDATE_INTERVAL_MS);
   };
@@ -84,7 +116,7 @@ export function useInterpolatedTimings(
   const startTimer = () => {
     if (runningRef.current) return;
     runningRef.current = true;
-    publishCurrentTimings(Date.now(), true);
+    publishCurrentTimings(performance.now(), true);
     scheduleNextTick();
   };
 
@@ -101,59 +133,36 @@ export function useInterpolatedTimings(
     const snap = snapshot();
     if (!snap) return;
 
-    const serverReceivedAt = Date.now();
-    const timersRunning = snap.timersRunning;
-    const wasTimersRunning = serverStateRef.current.timersRunning;
-
-    // Freeze at the displayed values when timers stop so we do not drift ahead of the server.
-    const serverTimings =
-      serverStateRef.current.serverTimings && !timersRunning && wasTimersRunning
-        ? {
-            miniElapsed: currentValuesRef.current.mini,
-            workElapsed: currentValuesRef.current.work,
-            miniTaking: snap.timings.miniTaking,
-            workTaking: snap.timings.workTaking,
-          }
-        : snap.timings;
+    const receivedAt = snapshotReceivedAt();
+    const projected = projectTimings(snap, receivedAt, performance.now());
+    const currentTimings = currentTimingsRef.current;
 
     // Calculate drift from current interpolated values
-    const driftMini = serverTimings.miniElapsed - currentValuesRef.current.mini;
-    const driftWork = serverTimings.workElapsed - currentValuesRef.current.work;
-
-    const lastTaking = lastServerTakingRef.current;
+    const driftMini = projected.miniElapsed - currentTimings.miniElapsed;
+    const driftWork = projected.workElapsed - currentTimings.workElapsed;
     const shouldSnapMini =
       Math.abs(driftMini) >= SNAP_THRESHOLD_SECONDS ||
-      (lastTaking.mini !== undefined && serverTimings.miniTaking !== lastTaking.mini);
+      Math.abs(projected.miniTaking - currentTimings.miniTaking) >=
+        SNAP_THRESHOLD_SECONDS;
     const shouldSnapWork =
       Math.abs(driftWork) >= SNAP_THRESHOLD_SECONDS ||
-      (lastTaking.work !== undefined && serverTimings.workTaking !== lastTaking.work);
+      Math.abs(projected.workTaking - currentTimings.workTaking) >=
+        SNAP_THRESHOLD_SECONDS;
 
     if (shouldSnapMini || shouldSnapWork) {
       // Snap immediately
-      currentValuesRef.current.mini = serverTimings.miniElapsed;
-      currentValuesRef.current.work = serverTimings.workElapsed;
-      setInterpolated({
-        miniElapsed: serverTimings.miniElapsed,
-        workElapsed: serverTimings.workElapsed,
-        miniTaking: serverTimings.miniTaking,
-        workTaking: serverTimings.workTaking,
-      });
+      currentTimingsRef.current = projected;
+      setInterpolated(projected);
     }
-
-    lastServerTakingRef.current = {
-      mini: serverTimings.miniTaking,
-      work: serverTimings.workTaking,
-    };
 
     // Update server state ref
     serverStateRef.current = {
-      serverTimings,
-      serverReceivedAt,
-      timersRunning,
+      snapshot: snap,
+      receivedAt,
     };
 
-    if (shouldSnapMini || shouldSnapWork || !timersRunning) {
-      publishCurrentTimings(serverReceivedAt, true);
+    if (shouldSnapMini || shouldSnapWork || !snap.timersRunning) {
+      publishCurrentTimings(performance.now(), true);
     }
   });
 

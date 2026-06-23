@@ -13,13 +13,20 @@ import type { AntiRsiConfig } from "./config-schema"
 
 export type BreakType = "mini" | "work"
 
-export type AntiRsiState = "normal" | "in-mini" | "in-work"
+export type AntiRsiState = "normal" | "pending-mini" | "pending-work" | "in-mini" | "in-work"
 
 export interface AntiRsiTimings {
   miniElapsed: number
   miniTaking: number
   workElapsed: number
   workTaking: number
+}
+
+export interface AntiRsiBreakWarning {
+  breakType: BreakType
+  phase: "countdown" | "waiting-for-activity-pause"
+  startsInSeconds: number
+  forcedStartInSeconds: number | null
 }
 
 export interface AntiRsiSnapshot {
@@ -29,6 +36,7 @@ export interface AntiRsiSnapshot {
   lastUpdatedSeconds: number
   paused: boolean
   timersRunning: boolean
+  breakWarning: AntiRsiBreakWarning | null
 }
 
 export type AntiRsiEvent =
@@ -36,6 +44,9 @@ export type AntiRsiEvent =
   | { type: "work-break-start"; naturalContinuation: boolean }
   | { type: "break-update"; breakType: BreakType }
   | { type: "break-end"; breakType: BreakType }
+  | { type: "break-warning-start"; breakType: BreakType }
+  | { type: "break-warning-update"; breakType: BreakType }
+  | { type: "break-warning-end"; breakType: BreakType }
   | { type: "timings-reset" }
   | { type: "status-update" }
   | { type: "paused" }
@@ -57,6 +68,10 @@ const mergeConfig = (override?: Partial<AntiRsiConfig>): AntiRsiConfig => {
     },
     tickIntervalMs: 500,
     naturalBreakContinuationWindowSeconds: 30,
+    breakWarningLeadSeconds: 10,
+    waitForActivityPauseBeforeBreak: false,
+    breakStartGraceSeconds: 2,
+    maxBreakStartDelaySeconds: 30,
   }
 
   if (!override) {
@@ -69,6 +84,12 @@ const mergeConfig = (override?: Partial<AntiRsiConfig>): AntiRsiConfig => {
     tickIntervalMs: override.tickIntervalMs ?? base.tickIntervalMs,
     naturalBreakContinuationWindowSeconds:
       override.naturalBreakContinuationWindowSeconds ?? base.naturalBreakContinuationWindowSeconds,
+    breakWarningLeadSeconds: override.breakWarningLeadSeconds ?? base.breakWarningLeadSeconds,
+    waitForActivityPauseBeforeBreak:
+      override.waitForActivityPauseBeforeBreak ?? base.waitForActivityPauseBeforeBreak,
+    breakStartGraceSeconds: override.breakStartGraceSeconds ?? base.breakStartGraceSeconds,
+    maxBreakStartDelaySeconds:
+      override.maxBreakStartDelaySeconds ?? base.maxBreakStartDelaySeconds,
   }
 }
 

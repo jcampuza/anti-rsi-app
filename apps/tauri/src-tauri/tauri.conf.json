@@ -15,9 +15,11 @@
       {
         "label": "main",
         "title": "Anti RSI",
-        "width": 900,
-        "height": 670,
-        "resizable": false,
+        "width": 480,
+        "height": 360,
+        "minWidth": 360,
+        "minHeight": 360,
+        "resizable": true,
         "fullscreen": false,
         "visible": true
       }

@@ -2,7 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Anti RSI desktop permissions",
-  "windows": ["main", "overlay-*"],
+  "windows": ["main", "overlay-*", "warning-*"],
   "permissions": [
     "core:default",
     "opener:default",

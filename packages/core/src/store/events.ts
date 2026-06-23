@@ -9,14 +9,17 @@ import { selectTimersRunning, selectSnapshot } from "./selectors"
 import { type StoreState } from "./state"
 
 const breakTypeForState = (state: AntiRsiState): BreakType | undefined => {
-  if (state === "in-mini") {
+  if (state === "pending-mini" || state === "in-mini") {
     return "mini"
   }
-  if (state === "in-work") {
+  if (state === "pending-work" || state === "in-work") {
     return "work"
   }
   return undefined
 }
+
+const isActiveBreakState = (state: AntiRsiState): boolean =>
+  state === "in-mini" || state === "in-work"
 
 /** User/command-driven timing changes must bypass throttled status-update broadcasts. */
 const shouldEmitTimingsReset = (
@@ -42,6 +45,12 @@ const snapshotsEqual = (prev: AntiRsiSnapshot, next: AntiRsiSnapshot): boolean =
   if (prev.lastUpdatedSeconds !== next.lastUpdatedSeconds) return false
   if (prev.paused !== next.paused) return false
   if (prev.timersRunning !== next.timersRunning) return false
+  if (prev.breakWarning?.breakType !== next.breakWarning?.breakType) return false
+  if (prev.breakWarning?.phase !== next.breakWarning?.phase) return false
+  if (prev.breakWarning?.startsInSeconds !== next.breakWarning?.startsInSeconds) return false
+  if (prev.breakWarning?.forcedStartInSeconds !== next.breakWarning?.forcedStartInSeconds) {
+    return false
+  }
   const prevTimings = prev.timings
   const nextTimings = next.timings
   return (
@@ -73,9 +82,9 @@ export const deriveEvents = (
     const prevBreakType = breakTypeForState(prevSnapshot.state)
     const nextBreakType = breakTypeForState(nextSnapshot.state)
 
-    if (nextBreakType === "mini") {
+    if (nextSnapshot.state === "in-mini" && !isActiveBreakState(prevSnapshot.state)) {
       events.push({ type: "mini-break-start" })
-    } else if (nextBreakType === "work") {
+    } else if (nextSnapshot.state === "in-work" && !isActiveBreakState(prevSnapshot.state)) {
       const naturalContinuation =
         action.type === "START_WORK_BREAK" &&
         "naturalContinuation" in action &&
@@ -86,7 +95,7 @@ export const deriveEvents = (
       })
     }
 
-    if (prevBreakType && nextBreakType !== prevBreakType) {
+    if (prevBreakType && isActiveBreakState(prevSnapshot.state) && nextBreakType !== prevBreakType) {
       events.push({ type: "break-end", breakType: prevBreakType })
     }
   } else {
@@ -94,6 +103,17 @@ export const deriveEvents = (
     if (breakType) {
       events.push({ type: "break-update", breakType })
     }
+  }
+
+  const prevWarning = prevSnapshot.breakWarning
+  const nextWarning = nextSnapshot.breakWarning
+  if (prevWarning && (!nextWarning || nextWarning.breakType !== prevWarning.breakType)) {
+    events.push({ type: "break-warning-end", breakType: prevWarning.breakType })
+  }
+  if (nextWarning && (!prevWarning || prevWarning.breakType !== nextWarning.breakType)) {
+    events.push({ type: "break-warning-start", breakType: nextWarning.breakType })
+  } else if (nextWarning) {
+    events.push({ type: "break-warning-update", breakType: nextWarning.breakType })
   }
 
   if (shouldEmitTimingsReset(action, prevSnapshot, nextSnapshot)) {

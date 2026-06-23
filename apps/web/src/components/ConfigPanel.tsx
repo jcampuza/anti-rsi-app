@@ -17,10 +17,28 @@ export const ConfigPanel: Component<ConfigPanelProps> = (props) => {
   const [workConfig, setWorkConfig] = createSignal<WorkBreakConfig>({
     ...props.config.work,
   });
+  const [breakWarningLeadSeconds, setBreakWarningLeadSeconds] = createSignal(
+    props.config.breakWarningLeadSeconds,
+  );
+  const [
+    waitForActivityPauseBeforeBreak,
+    setWaitForActivityPauseBeforeBreak,
+  ] = createSignal(props.config.waitForActivityPauseBeforeBreak);
+  const [breakStartGraceSeconds, setBreakStartGraceSeconds] = createSignal(
+    props.config.breakStartGraceSeconds,
+  );
+  const [maxBreakStartDelaySeconds, setMaxBreakStartDelaySeconds] =
+    createSignal(props.config.maxBreakStartDelaySeconds);
 
   createEffect(() => {
     setMiniConfig({ ...props.config.mini });
     setWorkConfig({ ...props.config.work });
+    setBreakWarningLeadSeconds(props.config.breakWarningLeadSeconds);
+    setWaitForActivityPauseBeforeBreak(
+      props.config.waitForActivityPauseBeforeBreak,
+    );
+    setBreakStartGraceSeconds(props.config.breakStartGraceSeconds);
+    setMaxBreakStartDelaySeconds(props.config.maxBreakStartDelaySeconds);
   });
 
   const handleApply = (): void => {
@@ -30,6 +48,11 @@ export const ConfigPanel: Component<ConfigPanelProps> = (props) => {
         config: {
           mini: miniConfig(),
           work: workConfig(),
+          breakWarningLeadSeconds: breakWarningLeadSeconds(),
+          waitForActivityPauseBeforeBreak:
+            waitForActivityPauseBeforeBreak(),
+          breakStartGraceSeconds: breakStartGraceSeconds(),
+          maxBreakStartDelaySeconds: maxBreakStartDelaySeconds(),
         },
       })
       .catch((error) =>
@@ -158,6 +181,71 @@ export const ConfigPanel: Component<ConfigPanelProps> = (props) => {
                     10,
                   ),
                 })
+              }
+            />
+          </label>
+          <label class="flex flex-col gap-1 text-sm text-muted-foreground">
+            Warning Lead Time (s)
+            <input
+              class="input"
+              type="number"
+              min={0}
+              value={breakWarningLeadSeconds()}
+              onInput={(event) =>
+                setBreakWarningLeadSeconds(
+                  Number.parseInt(event.currentTarget.value, 10),
+                )
+              }
+            />
+          </label>
+          <label class="flex items-start gap-3 rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-4 text-sm text-muted-foreground sm:col-span-2">
+            <input
+              class="mt-0.5 h-4 w-4 accent-[var(--color-accent)]"
+              type="checkbox"
+              checked={waitForActivityPauseBeforeBreak()}
+              onChange={(event) =>
+                setWaitForActivityPauseBeforeBreak(
+                  event.currentTarget.checked,
+                )
+              }
+            />
+            <span class="space-y-1">
+              <span class="block font-semibold text-foreground">
+                Wait for a pause in typing or mouse movement
+              </span>
+              <span class="block">
+                Breaks can wait briefly for a quiet moment before the full
+                overlay appears.
+              </span>
+            </span>
+          </label>
+          <label class="flex flex-col gap-1 text-sm text-muted-foreground">
+            Activity Pause Needed (s)
+            <input
+              class="input"
+              type="number"
+              min={0}
+              disabled={!waitForActivityPauseBeforeBreak()}
+              value={breakStartGraceSeconds()}
+              onInput={(event) =>
+                setBreakStartGraceSeconds(
+                  Number.parseInt(event.currentTarget.value, 10),
+                )
+              }
+            />
+          </label>
+          <label class="flex flex-col gap-1 text-sm text-muted-foreground">
+            Max Activity Delay (s)
+            <input
+              class="input"
+              type="number"
+              min={0}
+              disabled={!waitForActivityPauseBeforeBreak()}
+              value={maxBreakStartDelaySeconds()}
+              onInput={(event) =>
+                setMaxBreakStartDelaySeconds(
+                  Number.parseInt(event.currentTarget.value, 10),
+                )
               }
             />
           </label>

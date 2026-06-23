@@ -32,6 +32,11 @@ export type EndWorkBreakAction = {
   type: "END_WORK_BREAK"
 }
 
+export type AckBreakVisibleAction = {
+  type: "ACK_BREAK_VISIBLE"
+  breakType: "mini" | "work"
+}
+
 export type PostponeWorkBreakAction = {
   type: "POSTPONE_WORK_BREAK"
 }
@@ -68,6 +73,7 @@ export type Action =
   | EndMiniBreakAction
   | StartWorkBreakAction
   | EndWorkBreakAction
+  | AckBreakVisibleAction
   | PostponeWorkBreakAction
   | SetUserPausedAction
   | AddInhibitorAction

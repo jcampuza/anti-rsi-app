@@ -12,8 +12,12 @@ use tauri_plugin_shell::{
 
 const API_PORT: &str = "56321";
 const OVERLAY_LABEL_PREFIX: &str = "overlay-";
+const WARNING_LABEL_PREFIX: &str = "warning-";
 const MAIN_WINDOW_LABEL: &str = "main";
 const TRAY_ID: &str = "antirsi-tray";
+const WARNING_WIDTH: f64 = 260.0;
+const WARNING_HEIGHT: f64 = 76.0;
+const WARNING_MARGIN: f64 = 16.0;
 
 struct SidecarState {
     child: Mutex<Option<CommandChild>>,
@@ -101,6 +105,80 @@ fn show_break_overlay(app: AppHandle, kind: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn show_break_warning(app: AppHandle, kind: String) -> Result<(), String> {
+    match kind.as_str() {
+        "mini" | "work" => {}
+        _ => return Err(format!("unsupported break warning kind: {kind}")),
+    };
+
+    let monitors = app
+        .available_monitors()
+        .map_err(|error| error.to_string())?;
+    if monitors.is_empty() {
+        return Err("no display available for break warning".to_string());
+    }
+
+    for (index, monitor) in monitors.iter().enumerate() {
+        let label = format!("{WARNING_LABEL_PREFIX}{index}");
+        let position = monitor.position();
+        let size = monitor.size();
+        let scale_factor = monitor.scale_factor();
+        let x = position.x as f64 / scale_factor + size.width as f64 / scale_factor
+            - WARNING_WIDTH
+            - WARNING_MARGIN;
+        let y = position.y as f64 / scale_factor + size.height as f64 / scale_factor
+            - WARNING_HEIGHT
+            - WARNING_MARGIN;
+
+        let warning = if let Some(window) = app.get_webview_window(&label) {
+            window
+        } else {
+            WebviewWindowBuilder::new(&app, label, WebviewUrl::App("index.html?warning=1".into()))
+                .title("Anti RSI Break Warning")
+                .position(x, y)
+                .inner_size(WARNING_WIDTH, WARNING_HEIGHT)
+                .decorations(false)
+                .transparent(true)
+                .resizable(false)
+                .maximizable(false)
+                .minimizable(false)
+                .closable(true)
+                .focused(false)
+                .focusable(false)
+                .skip_taskbar(true)
+                .always_on_top(true)
+                .visible_on_all_workspaces(true)
+                .visible(false)
+                .build()
+                .map_err(|error| error.to_string())?
+        };
+
+        let _ = warning.set_position(tauri::Position::Logical(tauri::LogicalPosition { x, y }));
+        let _ = warning.set_size(tauri::Size::Logical(tauri::LogicalSize {
+            width: WARNING_WIDTH,
+            height: WARNING_HEIGHT,
+        }));
+        let _ = warning.set_visible_on_all_workspaces(true);
+        let _ = warning.set_always_on_top(true);
+        let _ = warning.show();
+    }
+
+    for window in app.webview_windows().into_values() {
+        if let Some(index) = window
+            .label()
+            .strip_prefix(WARNING_LABEL_PREFIX)
+            .and_then(|value| value.parse::<usize>().ok())
+        {
+            if index >= monitors.len() {
+                window.close().map_err(|error| error.to_string())?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
 fn hide_break_overlay(app: AppHandle) -> Result<(), String> {
     close_break_overlays(&app)?;
 
@@ -110,6 +188,11 @@ fn hide_break_overlay(app: AppHandle) -> Result<(), String> {
     restore_previous_frontmost_application(&app);
 
     Ok(())
+}
+
+#[tauri::command]
+fn hide_break_warning(app: AppHandle) -> Result<(), String> {
+    hide_break_warnings(&app)
 }
 
 fn has_break_overlay(app: &AppHandle) -> bool {
@@ -122,6 +205,16 @@ fn close_break_overlays(app: &AppHandle) -> Result<(), String> {
     for window in app.webview_windows().into_values() {
         if window.label().starts_with(OVERLAY_LABEL_PREFIX) {
             window.close().map_err(|error| error.to_string())?;
+        }
+    }
+
+    Ok(())
+}
+
+fn hide_break_warnings(app: &AppHandle) -> Result<(), String> {
+    for window in app.webview_windows().into_values() {
+        if window.label().starts_with(WARNING_LABEL_PREFIX) {
+            window.hide().map_err(|error| error.to_string())?;
         }
     }
 
@@ -293,7 +386,9 @@ pub fn run() {
             api_base_url,
             quit_sidecar,
             show_break_overlay,
+            show_break_warning,
             hide_break_overlay,
+            hide_break_warning,
         ])
         .setup(|app| {
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);

@@ -17,6 +17,10 @@ export const antiRsiConfigSchema = z.object({
   work: workBreakConfigSchema,
   tickIntervalMs: z.number().positive(),
   naturalBreakContinuationWindowSeconds: z.number().nonnegative(),
+  breakWarningLeadSeconds: z.number().nonnegative().default(10),
+  waitForActivityPauseBeforeBreak: z.boolean().default(false),
+  breakStartGraceSeconds: z.number().nonnegative().default(2),
+  maxBreakStartDelaySeconds: z.number().nonnegative().default(30),
 })
 
 export type BreakConfig = z.infer<typeof breakConfigSchema>
