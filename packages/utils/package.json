@@ -9,8 +9,11 @@
     }
   },
   "scripts": {
-    "build": "tsdown src/index.ts --format esm --dts --out-dir dist --clean",
+    "build": "vp pack src/index.ts --format esm --dts --out-dir dist --clean",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vp test run --passWithNoTests"
+  },
+  "devDependencies": {
+    "vite-plus": "catalog:"
   }
 }

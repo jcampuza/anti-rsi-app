@@ -2,7 +2,7 @@ import { resolve } from "node:path"
 import { tanstackRouter } from "@tanstack/router-plugin/vite"
 import tailwindcss from "@tailwindcss/vite"
 import solid from "vite-plugin-solid"
-import { defineConfig } from "vite"
+import { defineConfig } from "vite-plus"
 
 const port = Number(process.env.PORT ?? 5733)
 

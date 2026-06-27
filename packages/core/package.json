@@ -9,11 +9,14 @@
     }
   },
   "scripts": {
-    "build": "tsdown src/index.ts --format esm --dts --out-dir dist --clean",
+    "build": "vp pack src/index.ts --format esm --dts --out-dir dist --clean",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --config vitest.config.ts"
+    "test": "vp test run --config vitest.config.ts"
   },
   "dependencies": {
     "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "vite-plus": "catalog:"
   }
 }

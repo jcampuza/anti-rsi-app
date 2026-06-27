@@ -3,7 +3,7 @@ import tseslint from "typescript-eslint";
 
 export default defineConfig(
   {
-    ignores: ["**/node_modules", "**/dist", "**/out", ".turbo", "artifacts"],
+    ignores: ["**/node_modules", "**/dist", "**/out", "artifacts"],
   },
   ...tseslint.configs.recommended,
   {

@@ -10,7 +10,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests --config vitest.config.ts"
+    "test": "vp test run --passWithNoTests --config vitest.config.ts"
   },
   "dependencies": {
     "@antirsi/contracts": "workspace:*",
@@ -19,6 +19,7 @@
     "hono": "^4.12.21"
   },
   "devDependencies": {
-    "@types/node": "^22.19.3"
+    "@types/node": "catalog:",
+    "vite-plus": "catalog:"
   }
 }

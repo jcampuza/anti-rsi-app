@@ -7,29 +7,34 @@
     "apps/*",
     "packages/*"
   ],
+  "catalog": {
+    "@types/node": "^22.20.0",
+    "vite-plus": "0.2.1",
+    "vitest": "4.1.9"
+  },
   "scripts": {
     "dev": "bun run --cwd apps/tauri dev",
     "dev:web": "PORT=5733 VITE_API_BASE_URL=http://127.0.0.1:56321/ bun run --cwd apps/web dev -- --host 127.0.0.1",
-    "build": "turbo run build",
-    "build:web": "turbo run build --filter=@antirsi/web",
+    "build": "vp run --filter './packages/*' --filter '@antirsi/web' --filter '@antirsi/tauri' build",
+    "build:web": "vp run --filter @antirsi/web build",
     "build:tauri": "bun run --cwd apps/tauri build",
-    "typecheck": "turbo run typecheck",
+    "typecheck": "vp run -r typecheck",
     "lint": "eslint --cache .",
-    "test": "turbo run test",
+    "test": "vp run -r test",
     "package": "bun run build:tauri",
     "format": "prettier --write ."
   },
   "devDependencies": {
-    "@types/node": "^22.19.3",
-    "eslint": "^9.39.2",
-    "eslint-plugin-react": "^7.37.5",
-    "eslint-plugin-react-hooks": "^5.2.0",
-    "eslint-plugin-react-refresh": "^0.4.26",
-    "prettier": "^3.7.4",
-    "tsdown": "^0.20.3",
-    "turbo": "^2.3.3",
+    "@types/node": "catalog:",
+    "eslint": "^9.39.4",
+    "prettier": "^3.9.0",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.46.3",
-    "vitest": "^3.2.4"
+    "typescript-eslint": "^8.62.0",
+    "vite-plus": "catalog:",
+    "vitest": "catalog:"
+  },
+  "overrides": {
+    "vite": "npm:@voidzero-dev/vite-plus-core@0.2.1",
+    "vitest": "4.1.9"
   }
 }

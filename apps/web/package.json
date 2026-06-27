@@ -3,11 +3,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview",
+    "dev": "vp dev",
+    "build": "vp build",
+    "preview": "vp preview",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vp test run --passWithNoTests"
   },
   "dependencies": {
     "@antirsi/contracts": "workspace:*",
@@ -24,7 +24,7 @@
     "@tanstack/router-plugin": "^1.121.0",
     "@tailwindcss/vite": "^4.1.18",
     "tailwindcss": "^4.1.18",
-    "vite": "^8.0.10",
+    "vite-plus": "catalog:",
     "vite-plugin-solid": "^2.11.10"
   }
 }
