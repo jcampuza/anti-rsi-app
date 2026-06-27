@@ -36,7 +36,9 @@ describe("reducer config updates", () => {
     })
     expect(nextState.lastIdleSeconds).toBe(0)
     expect(nextState.lastUpdatedSeconds).toBe(0)
-    expect(nextState.config.mini.intervalSeconds).toBe(defaultConfig().mini.intervalSeconds + 30)
+    expect(nextState.config.mini.intervalSeconds).toBe(
+      defaultConfig().mini.intervalSeconds + 30,
+    )
   })
 })
 
@@ -128,7 +130,7 @@ describe("pending breaks", () => {
     const stillPendingState = reducer(pendingState, {
       type: "TICK",
       idleSeconds: 0,
-      dtSeconds: 5,
+      dtSeconds: 1,
     })
     expect(stillPendingState.status).toBe("pending-mini")
     expect(stillPendingState.timings.miniTaking).toBe(0)
@@ -139,6 +141,52 @@ describe("pending breaks", () => {
     })
     expect(activeState.status).toBe("in-mini")
     expect(activeState.timings.miniTaking).toBe(0)
+  })
+
+  it("starts a pending mini break after the overlay acknowledgement timeout", () => {
+    const config = defaultConfig()
+    const pendingState = {
+      ...createInitialState(),
+      status: "pending-mini" as const,
+      timings: {
+        miniElapsed: config.mini.intervalSeconds,
+        miniTaking: 0,
+        workElapsed: 0,
+        workTaking: 0,
+      },
+    }
+
+    const activeState = reducer(pendingState, {
+      type: "TICK",
+      idleSeconds: 0,
+      dtSeconds: 2,
+    })
+
+    expect(activeState.status).toBe("in-mini")
+    expect(activeState.timings.miniTaking).toBe(0)
+  })
+
+  it("starts a pending work break after the overlay acknowledgement timeout", () => {
+    const config = defaultConfig()
+    const pendingState = {
+      ...createInitialState(),
+      status: "pending-work" as const,
+      timings: {
+        miniElapsed: 0,
+        miniTaking: config.mini.durationSeconds,
+        workElapsed: config.work.intervalSeconds,
+        workTaking: 0,
+      },
+    }
+
+    const activeState = reducer(pendingState, {
+      type: "TICK",
+      idleSeconds: 0,
+      dtSeconds: 2,
+    })
+
+    expect(activeState.status).toBe("in-work")
+    expect(activeState.timings.workTaking).toBe(0)
   })
 
   it("can wait for a pause in activity before entering a pending break", () => {

@@ -38,10 +38,14 @@ function OverlayWindow(props: { kind: OverlayKind }) {
     antirsi.snapshot,
     antirsi.snapshotReceivedAt,
   );
-  const [acknowledged, setAcknowledged] = createSignal(false);
+  const [acknowledgedKind, setAcknowledgedKind] =
+    createSignal<OverlayKind | null>(null);
+  const [ackInFlight, setAckInFlight] = createSignal(false);
   useOverlayMode({ isEnabled: true });
   createEffect(() => {
     if (antirsi.snapshot().state === "normal") {
+      setAcknowledgedKind(null);
+      setAckInFlight(false);
       hideTauriBreakOverlay();
     }
   });
@@ -49,12 +53,26 @@ function OverlayWindow(props: { kind: OverlayKind }) {
     const state = antirsi.snapshot().state;
     const expectedPendingState =
       props.kind === "work" ? "pending-work" : "pending-mini";
-    if (!acknowledged() && state === expectedPendingState) {
-      setAcknowledged(true);
-      antirsi.api.dispatch({
-        type: "ACK_BREAK_VISIBLE",
-        breakType: props.kind,
-      });
+    if (
+      state === expectedPendingState &&
+      acknowledgedKind() !== props.kind &&
+      !ackInFlight()
+    ) {
+      setAckInFlight(true);
+      void antirsi.api
+        .dispatch({
+          type: "ACK_BREAK_VISIBLE",
+          breakType: props.kind,
+        })
+        .then(() => {
+          setAcknowledgedKind(props.kind);
+        })
+        .catch(() => {
+          setAcknowledgedKind(null);
+        })
+        .finally(() => {
+          setAckInFlight(false);
+        });
     }
   });
 

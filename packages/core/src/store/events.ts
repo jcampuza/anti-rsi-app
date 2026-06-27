@@ -18,9 +18,6 @@ const breakTypeForState = (state: AntiRsiState): BreakType | undefined => {
   return undefined
 }
 
-const isActiveBreakState = (state: AntiRsiState): boolean =>
-  state === "in-mini" || state === "in-work"
-
 /** User/command-driven timing changes must bypass throttled status-update broadcasts. */
 const shouldEmitTimingsReset = (
   action: Action,
@@ -82,9 +79,13 @@ export const deriveEvents = (
     const prevBreakType = breakTypeForState(prevSnapshot.state)
     const nextBreakType = breakTypeForState(nextSnapshot.state)
 
-    if (nextSnapshot.state === "in-mini" && !isActiveBreakState(prevSnapshot.state)) {
+    if (prevBreakType && nextBreakType !== prevBreakType) {
+      events.push({ type: "break-end", breakType: prevBreakType })
+    }
+
+    if (nextBreakType === "mini" && nextBreakType !== prevBreakType) {
       events.push({ type: "mini-break-start" })
-    } else if (nextSnapshot.state === "in-work" && !isActiveBreakState(prevSnapshot.state)) {
+    } else if (nextBreakType === "work" && nextBreakType !== prevBreakType) {
       const naturalContinuation =
         action.type === "START_WORK_BREAK" &&
         "naturalContinuation" in action &&
@@ -93,10 +94,6 @@ export const deriveEvents = (
         type: "work-break-start",
         naturalContinuation: Boolean(naturalContinuation),
       })
-    }
-
-    if (prevBreakType && isActiveBreakState(prevSnapshot.state) && nextBreakType !== prevBreakType) {
-      events.push({ type: "break-end", breakType: prevBreakType })
     }
   } else {
     const breakType = breakTypeForState(nextSnapshot.state)

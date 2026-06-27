@@ -16,6 +16,8 @@ const clamp = (value: number, min: number, max: number): number => {
   return value
 }
 
+const pendingBreakAckTimeoutSeconds = 2
+
 const clampTo = (value: number, max: number): number => clamp(value, 0, max)
 
 const createTimings = (): AntiRsiTimings => ({
@@ -315,11 +317,21 @@ const tick = (state: StoreState, action: TickAction): StoreState => {
   }
 
   if (state.status === "pending-mini" || state.status === "pending-work") {
-    return {
+    const pendingState = {
       ...next,
       status: state.status,
       timings: state.timings,
-      breakStartDelayElapsed: state.breakStartDelayElapsed,
+      breakStartDelayElapsed: state.breakStartDelayElapsed + delta,
+    }
+
+    if (pendingState.breakStartDelayElapsed >= pendingBreakAckTimeoutSeconds) {
+      return state.status === "pending-mini"
+        ? enterMiniBreak(pendingState)
+        : enterWorkBreak(pendingState, false)
+    }
+
+    return {
+      ...pendingState,
     }
   }
 

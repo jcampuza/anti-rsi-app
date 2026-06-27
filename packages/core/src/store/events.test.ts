@@ -93,6 +93,44 @@ describe("deriveEvents", () => {
 
     expect(events).toContainEqual({ type: "timings-reset" })
   })
+
+  it("emits break start when a mini break enters pending", () => {
+    const prevState = createInitialState()
+    const action = { type: "START_MINI_BREAK" as const }
+    const nextState = reducer(prevState, action)
+    const { events } = deriveEvents(prevState, nextState, action)
+
+    expect(nextState.status).toBe("pending-mini")
+    expect(events).toContainEqual({ type: "mini-break-start" })
+  })
+
+  it("does not emit a duplicate break start when a pending mini break is acknowledged", () => {
+    const prevState = reducer(createInitialState(), {
+      type: "START_MINI_BREAK",
+    })
+    const action = {
+      type: "ACK_BREAK_VISIBLE" as const,
+      breakType: "mini" as const,
+    }
+    const nextState = reducer(prevState, action)
+    const { events } = deriveEvents(prevState, nextState, action)
+
+    expect(nextState.status).toBe("in-mini")
+    expect(events).not.toContainEqual({ type: "mini-break-start" })
+  })
+
+  it("emits break end when a pending mini break is skipped", () => {
+    const prevState = reducer(createInitialState(), {
+      type: "START_MINI_BREAK",
+    })
+    const action = { type: "END_MINI_BREAK" as const }
+    const nextState = reducer(prevState, action)
+    const { events } = deriveEvents(prevState, nextState, action)
+
+    expect(nextState.status).toBe("normal")
+    expect(events).toContainEqual({ type: "break-end", breakType: "mini" })
+  })
 })
 
-const defaultIdleSeconds = (): number => createInitialState().config.mini.durationSeconds
+const defaultIdleSeconds = (): number =>
+  createInitialState().config.mini.durationSeconds
