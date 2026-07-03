@@ -1,16 +1,29 @@
-import { NodeHttpServer } from "@effect/platform-node";
+import { NodeFileSystem, NodeHttpServer } from "@effect/platform-node";
 import type { MainEvent } from "@antirsi/contracts";
 import type { Store } from "@antirsi/core";
-import { Effect, Fiber, Layer } from "effect";
+import {
+  Context,
+  Effect,
+  Layer,
+  Logger,
+  ManagedRuntime,
+  References,
+} from "effect";
 import { HttpRouter } from "effect/unstable/http";
 import { createServer } from "node:http";
 
 import { LOOPBACK_HOST } from "./constants";
-import { makeApiApp } from "./create-api-app";
+import {
+  ApiAppLayer,
+  ApiEventBus,
+  ApiEventBusLayer,
+  ApiStore,
+} from "./create-api-app";
 
 export interface ApiServerDeps {
   store: Store;
   port?: number;
+  logFilePath?: string;
 }
 
 export interface ApiServerHandle {
@@ -65,15 +78,30 @@ const waitForServerReady = (server: ReturnType<typeof createServer>) =>
     catch: (error) => error,
   });
 
+const fileLoggerLayer = (logFilePath: string) =>
+  Logger.layer(
+    [Logger.formatJson.pipe(Logger.toFile(logFilePath, { flag: "a" }))],
+    { mergeWithExisting: false },
+  ).pipe(
+    Layer.provide(NodeFileSystem.layer),
+    Layer.merge(Layer.succeed(References.MinimumLogLevel)("Info")),
+  );
+
 export const startApiServerEffect = (deps: ApiServerDeps) =>
   Effect.gen(function* () {
-    const { layer, broadcast } = yield* makeApiApp(deps);
     const server = createServer();
 
-    const serverLayer = HttpRouter.serve(layer, {
+    const apiStoreLayer = Layer.succeed(ApiStore)({ store: deps.store });
+    const loggerLayer = deps.logFilePath
+      ? fileLoggerLayer(deps.logFilePath)
+      : Layer.empty;
+    const serverLayer = HttpRouter.serve(ApiAppLayer, {
       disableLogger: true,
       disableListenLog: true,
     }).pipe(
+      Layer.provideMerge(ApiEventBusLayer),
+      Layer.provideMerge(loggerLayer),
+      Layer.provide(apiStoreLayer),
       Layer.provide(
         NodeHttpServer.layer(() => server, {
           host: LOOPBACK_HOST,
@@ -82,29 +110,47 @@ export const startApiServerEffect = (deps: ApiServerDeps) =>
       ),
     );
 
-    const fiber = yield* Effect.sync(() =>
-      Effect.runFork(Layer.launch(serverLayer)),
+    const runtime = ManagedRuntime.make(serverLayer);
+    const disposeRuntime = Effect.promise(() => runtime.dispose());
+    const context = yield* Effect.catch(runtime.contextEffect, (error) =>
+      disposeRuntime.pipe(Effect.flatMap(() => Effect.fail(error))),
     );
+    const eventBus = Context.get(context, ApiEventBus);
 
     yield* waitForServerReady(server).pipe(
       Effect.catch((error) =>
-        Fiber.interrupt(fiber).pipe(Effect.flatMap(() => Effect.fail(error))),
+        disposeRuntime.pipe(Effect.flatMap(() => Effect.fail(error))),
       ),
     );
 
     const address = server.address();
     if (typeof address === "string" || address === null) {
-      yield* Fiber.interrupt(fiber);
+      yield* disposeRuntime;
       return yield* Effect.fail(
         new Error("API server did not bind to a TCP address"),
       );
     }
 
+    const url = new URL(`http://${LOOPBACK_HOST}:${address.port}/`);
+    yield* Effect.promise(() =>
+      runtime.runPromise(
+        Effect.logInfo("API server started", {
+          port: address.port,
+          url: url.href,
+        }),
+      ),
+    );
+
     return {
-      url: new URL(`http://${LOOPBACK_HOST}:${address.port}/`),
+      url,
       close: () =>
-        Effect.runPromise(Fiber.interrupt(fiber)).then(() => undefined),
-      broadcast,
+        runtime
+          .runPromise(Effect.logInfo("API server stopping"))
+          .then(() => runtime.dispose())
+          .then(() => undefined),
+      broadcast: (event: MainEvent) => {
+        Effect.runSync(eventBus.broadcast(event));
+      },
     };
   });
 
