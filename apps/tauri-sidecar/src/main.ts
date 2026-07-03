@@ -1,12 +1,13 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { createStore } from "@antirsi/core";
-import { startApiServer } from "@antirsi/server";
+import { Effect } from "effect";
 import { AntiRsiEngine } from "./lib/antirsi-engine";
 import { loadConfig } from "./lib/config-store";
 import { createCachedIdleProvider } from "./lib/idle-provider";
 import { configureLogger, log, logInfo } from "./lib/logger";
 import { startSidecarOrchestration } from "./lib/orchestration";
+import { startApiServerEffect } from "./server";
 
 const DEFAULT_PORT = 56321;
 
@@ -41,17 +42,20 @@ const parseOptions = (): Options => {
   return { port, userDataDir };
 };
 
-async function main(): Promise<void> {
+const startSidecar = Effect.gen(function* () {
   const options = parseOptions();
   const logFilePath = configureLogger(options.userDataDir);
   const store = createStore();
-  const persistedConfig = await loadConfig(options.userDataDir);
+  const persistedConfig = yield* Effect.tryPromise({
+    try: () => loadConfig(options.userDataDir),
+    catch: (error) => error,
+  });
   if (persistedConfig) {
     store.dispatch({ type: "SET_CONFIG", config: persistedConfig });
   }
 
   const antiRsiEngine = new AntiRsiEngine(store, createCachedIdleProvider());
-  const apiServer = await startApiServer({
+  const apiServer = yield* startApiServerEffect({
     store,
     port: options.port,
     logFilePath,
@@ -68,9 +72,9 @@ async function main(): Promise<void> {
     port: options.port,
   });
   console.log(`ANTIRSI_API_BASE_URL=${apiServer.url.href}`);
-}
+});
 
-void main().catch((error) => {
+void Effect.runPromise(startSidecar).catch((error) => {
   log("Fatal error", error instanceof Error ? error.stack : error);
   process.exit(1);
 });
