@@ -5,7 +5,7 @@ import { startApiServer } from "@antirsi/server";
 import { AntiRsiEngine } from "./lib/antirsi-engine";
 import { loadConfig } from "./lib/config-store";
 import { createCachedIdleProvider } from "./lib/idle-provider";
-import { log } from "./lib/logger";
+import { configureLogger, log, logInfo } from "./lib/logger";
 import { startSidecarOrchestration } from "./lib/orchestration";
 
 const DEFAULT_PORT = 56321;
@@ -43,6 +43,7 @@ const parseOptions = (): Options => {
 
 async function main(): Promise<void> {
   const options = parseOptions();
+  const logFilePath = configureLogger(options.userDataDir);
   const store = createStore();
   const persistedConfig = await loadConfig(options.userDataDir);
   if (persistedConfig) {
@@ -50,7 +51,11 @@ async function main(): Promise<void> {
   }
 
   const antiRsiEngine = new AntiRsiEngine(store, createCachedIdleProvider());
-  const apiServer = await startApiServer({ store, port: options.port });
+  const apiServer = await startApiServer({
+    store,
+    port: options.port,
+    logFilePath,
+  });
   startSidecarOrchestration({
     antiRsiEngine,
     apiServer,
@@ -58,6 +63,10 @@ async function main(): Promise<void> {
   });
 
   antiRsiEngine.start();
+  logInfo("Sidecar started", {
+    apiBaseUrl: apiServer.url.href,
+    port: options.port,
+  });
   console.log(`ANTIRSI_API_BASE_URL=${apiServer.url.href}`);
 }
 

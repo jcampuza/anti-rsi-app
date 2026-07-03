@@ -1,8 +1,12 @@
 export { LOOPBACK_HOST, LOOPBACK_ORIGIN_PATTERN } from "./constants";
 export {
-  createApiApp,
-  makeApiApp,
-  type ApiApp,
+  ApiAppLayer,
+  ApiCorsLayer,
+  ApiEventBus,
+  ApiEventBusLayer,
+  ApiHandlersLayer,
+  ApiRoutesLayer,
+  ApiStore,
   type ApiServerDeps,
 } from "./create-api-app";
 export {
