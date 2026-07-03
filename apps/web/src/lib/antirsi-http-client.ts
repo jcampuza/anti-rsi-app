@@ -1,7 +1,6 @@
-import type { ApiAppType } from "@antirsi/server"
-import type { AntiRsiDesktopBridge, ApiErrorBody, MainEvent } from "@antirsi/contracts"
 import type { Action } from "@antirsi/core"
-import { hc, parseResponse } from "hono/client"
+import type { AntiRsiDesktopBridge, ApiErrorBody, MainEvent } from "@antirsi/contracts"
+import { API_ROUTES } from "@antirsi/contracts"
 
 const commandErrorMessage = async (response: Response, fallback: string): Promise<string> => {
   try {
@@ -15,24 +14,45 @@ const commandErrorMessage = async (response: Response, fallback: string): Promis
   return fallback
 }
 
+const apiUrl = (baseUrl: string, route: string): URL => new URL(route, baseUrl)
+
+const jsonFetch = async <T>(url: URL): Promise<T> => {
+  const response = await fetch(url)
+  if (!response.ok) {
+    throw new Error(`Request failed (${response.status})`)
+  }
+  return response.json() as Promise<T>
+}
+
 export function createAntiRsiHttpClient(baseUrl: string): AntiRsiDesktopBridge {
-  const client = hc<ApiAppType>(baseUrl)
+  const getSnapshot = () =>
+    jsonFetch<Awaited<ReturnType<AntiRsiDesktopBridge["getSnapshot"]>>>(
+      apiUrl(baseUrl, API_ROUTES.SNAPSHOT),
+    )
 
-  const getSnapshot = () => parseResponse(client.snapshot.$get())
+  const getConfig = () =>
+    jsonFetch<Awaited<ReturnType<AntiRsiDesktopBridge["getConfig"]>>>(
+      apiUrl(baseUrl, API_ROUTES.CONFIG),
+    )
 
-  const getConfig = () => parseResponse(client.config.$get())
-
-  const getProcesses = () => parseResponse(client.processes.$get())
+  const getProcesses = () =>
+    jsonFetch<Awaited<ReturnType<AntiRsiDesktopBridge["getProcesses"]>>>(
+      apiUrl(baseUrl, API_ROUTES.PROCESSES),
+    )
 
   const dispatch = async (action: Action): Promise<void> => {
-    const response = await client.command.$post({ json: action })
+    const response = await fetch(apiUrl(baseUrl, API_ROUTES.COMMAND), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(action),
+    })
     if (!response.ok) {
       throw new Error(await commandErrorMessage(response, `Command failed (${response.status})`))
     }
   }
 
   const subscribeAll = (callback: (payload: MainEvent) => void): (() => void) => {
-    const source = new EventSource(client.events.$url().href)
+    const source = new EventSource(apiUrl(baseUrl, API_ROUTES.EVENTS).href)
 
     source.onmessage = (event) => {
       try {

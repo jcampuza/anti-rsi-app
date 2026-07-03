@@ -6,15 +6,20 @@
     ".": {
       "types": "./src/index.ts",
       "import": "./src/index.ts"
+    },
+    "./http-api": {
+      "types": "./src/http-api.ts",
+      "import": "./src/http-api.ts"
     }
   },
   "scripts": {
-    "build": "vp pack src/index.ts --format esm --dts --out-dir dist --clean",
+    "build": "vp pack src/index.ts src/http-api.ts --format esm --dts --out-dir dist --clean",
     "typecheck": "tsc --noEmit",
     "test": "vp test run --passWithNoTests"
   },
   "dependencies": {
-    "@antirsi/core": "workspace:*"
+    "@antirsi/core": "workspace:*",
+    "effect": "^4.0.0-beta.93"
   },
   "devDependencies": {
     "vite-plus": "catalog:"

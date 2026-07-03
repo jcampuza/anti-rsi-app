@@ -1,8 +1,12 @@
-export { LOOPBACK_HOST, LOOPBACK_ORIGIN_PATTERN } from './constants';
+export { LOOPBACK_HOST, LOOPBACK_ORIGIN_PATTERN } from "./constants";
 export {
   createApiApp,
+  makeApiApp,
   type ApiApp,
-  type ApiAppType,
   type ApiServerDeps,
-} from './create-api-app';
-export { startApiServer, type ApiServerHandle } from './start-api-server';
+} from "./create-api-app";
+export {
+  startApiServer,
+  startApiServerEffect,
+  type ApiServerHandle,
+} from "./start-api-server";

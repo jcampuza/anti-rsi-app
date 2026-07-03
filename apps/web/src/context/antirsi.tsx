@@ -3,6 +3,7 @@ import type { AntiRsiConfig, AntiRsiSnapshot } from "@antirsi/core";
 import type { AntiRsiDesktopBridge } from "@antirsi/contracts";
 import { Loader2 } from "lucide-solid";
 import { resolveAntiRsiClient } from "~/lib/antirsi-client";
+import { retryWithBackoff } from "~/lib/retry";
 import { startTauriOverlayManager } from "~/lib/tauri-overlay-manager";
 import {
   createContext,
@@ -52,8 +53,13 @@ export interface AntiRsiContextValue {
 
 const AntiRsiBootstrapContext = createContext<AntiRsiBootstrapContextValue>();
 const AntiRsiContext = createContext<AntiRsiContextValue>();
+const BOOTSTRAP_RETRY_DELAYS_MS = [250, 500, 1_000, 2_000, 4_000] as const;
 
-const applyMainEvent = (
+export const isAntiRsiBootstrapReady = (
+  state: Pick<AntiRsiState, "snapshot" | "config">,
+): boolean => state.snapshot !== undefined && state.config !== undefined;
+
+export const applyMainEvent = (
   payload: MainEvent,
   currentMeta: SnapshotEventMeta | undefined,
   setState: (patch: Partial<AntiRsiState>) => void,
@@ -114,14 +120,22 @@ export function AntiRsiProvider(props: ParentProps) {
     processes: [],
   });
 
-  const [initial] = createResource(async () => {
-    const [snapshot, config, processes] = await Promise.all([
-      api.getSnapshot(),
-      api.getConfig(),
-      api.getProcesses(),
-    ]);
-    return { snapshot, config, processes };
-  });
+  const [initial] = createResource(() =>
+    retryWithBackoff(
+      async () => {
+        const [snapshot, config, processes] = await Promise.all([
+          api.getSnapshot(),
+          api.getConfig(),
+          api.getProcesses(),
+        ]);
+        return { snapshot, config, processes };
+      },
+      {
+        retries: BOOTSTRAP_RETRY_DELAYS_MS.length,
+        delaysMs: BOOTSTRAP_RETRY_DELAYS_MS,
+      },
+    ),
+  );
 
   createEffect(() => {
     const data = initial();
@@ -162,10 +176,7 @@ export function AntiRsiProvider(props: ParentProps) {
 
   const value: AntiRsiBootstrapContextValue = {
     api,
-    ready: () =>
-      initial.state === "ready" &&
-      state.snapshot !== undefined &&
-      state.config !== undefined,
+    ready: () => isAntiRsiBootstrapReady(state),
     loading: () => initial.loading,
     error: () => initial.error,
     snapshot: () => state.snapshot,
@@ -253,14 +264,14 @@ export function AntiRsiBootstrap(props: ParentProps) {
 
   return (
     <Switch>
+      <Match when={antirsi.ready()}>
+        <AntiRsiReadyScope>{props.children}</AntiRsiReadyScope>
+      </Match>
       <Match when={antirsi.loading()}>
         <AntiRsiLoadingScreen />
       </Match>
       <Match when={antirsi.error()}>
         {(error) => <AntiRsiErrorScreen error={error()} />}
-      </Match>
-      <Match when={antirsi.ready()}>
-        <AntiRsiReadyScope>{props.children}</AntiRsiReadyScope>
       </Match>
     </Switch>
   );

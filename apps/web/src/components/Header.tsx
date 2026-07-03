@@ -43,17 +43,20 @@ export const Header = () => {
 
       <Portal>
         <Show when={isSettingsOpen()}>
-          <div class="absolute inset-0 flex items-center justify-center">
-            <ConfigPanel
-              class="z-10"
-              config={antirsi.config()}
-              api={antirsi.api}
-              onReset={() => {}}
-            />
+          <div
+            class="fixed inset-0 z-50 overflow-y-auto bg-background/85 p-4 sm:p-6"
+            onClick={() => setIsSettingsOpen(false)}
+          >
             <div
-              class="absolute inset-0 bg-background/85"
-              onClick={() => setIsSettingsOpen(false)}
-            ></div>
+              class="relative z-10 mx-auto w-full max-w-4xl"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <ConfigPanel
+                config={antirsi.config()}
+                api={antirsi.api}
+                onReset={() => {}}
+              />
+            </div>
           </div>
         </Show>
       </Portal>

@@ -1,23 +1,17 @@
+import { type MainEvent, type SnapshotEventMeta } from "@antirsi/contracts";
+import { AntiRsiApi } from "@antirsi/contracts/http-api";
 import {
-  API_ROUTES,
-  type ApiErrorBody,
-  type MainEvent,
-  type SnapshotEventMeta,
-} from '@antirsi/contracts';
-import {
-  type Action,
   selectConfig,
   selectProcesses,
   selectSnapshot,
   type Store,
-} from '@antirsi/core';
-import type { ApplyGlobalResponse } from 'hono/client';
-import { Hono } from 'hono';
-import { cors } from 'hono/cors';
-import { streamSSE } from 'hono/streaming';
-import { performance } from 'node:perf_hooks';
+} from "@antirsi/core";
+import { Effect, Layer, Queue, Stream } from "effect";
+import { HttpMiddleware, HttpRouter } from "effect/unstable/http";
+import { HttpApiBuilder } from "effect/unstable/httpapi";
+import { performance } from "node:perf_hooks";
 
-import { LOOPBACK_ORIGIN_PATTERN } from './constants';
+import { LOOPBACK_ORIGIN_PATTERN } from "./constants";
 
 export interface ApiServerDeps {
   store: Store;
@@ -25,95 +19,87 @@ export interface ApiServerDeps {
 
 type SnapshotMainEvent = Extract<
   MainEvent,
-  { type: 'init' | 'antirsi' | 'timers-paused' | 'timers-resumed' }
+  { type: "init" | "antirsi" | "timers-paused" | "timers-resumed" }
 >;
 
-export function createApiApp(deps: ApiServerDeps) {
-  let sequence = 0;
-  const subscribers = new Set<(event: MainEvent) => void>();
+export const makeApiApp = (deps: ApiServerDeps) =>
+  Effect.sync(() => {
+    let sequence = 0;
+    const subscribers = new Set<Queue.Queue<MainEvent>>();
 
-  const nextMeta = (): SnapshotEventMeta => ({
-    sequence: ++sequence,
-    serverMonotonicMs: performance.now(),
-  });
-
-  const withMeta = <T extends SnapshotMainEvent>(event: T): T =>
-    ({ ...event, meta: nextMeta() }) as T;
-
-  const buildInitEvent = (): MainEvent =>
-    withMeta({
-      type: 'init',
-      config: selectConfig(deps.store.getState()),
-      snapshot: selectSnapshot(deps.store.getState()),
-      processes: selectProcesses(deps.store.getState()),
+    const nextMeta = (): SnapshotEventMeta => ({
+      sequence: ++sequence,
+      serverMonotonicMs: performance.now(),
     });
 
-  const broadcast = (event: MainEvent): void => {
-    const eventWithFreshMeta = 'snapshot' in event ? withMeta(event) : event;
-    for (const push of subscribers) {
-      push(eventWithFreshMeta);
-    }
-  };
+    const withMeta = <T extends SnapshotMainEvent>(event: T): T =>
+      ({ ...event, meta: nextMeta() }) as T;
 
-  const app = new Hono();
-
-  app.use(
-    '*',
-    cors({
-      origin: (origin) => (LOOPBACK_ORIGIN_PATTERN.test(origin) ? origin : ''),
-      allowMethods: ['GET', 'POST', 'OPTIONS'],
-      allowHeaders: ['Content-Type'],
-    }),
-  );
-
-  app.onError((error, c) => {
-    const message = error instanceof Error ? error.message : 'Internal Server Error';
-    const body: ApiErrorBody = { message };
-    return c.json(body, 400);
-  });
-
-  app.notFound((c) => {
-    const body: ApiErrorBody = { message: 'Not Found' };
-    return c.json(body, 404);
-  });
-
-  const routes = app
-    .get(API_ROUTES.SNAPSHOT, (c) => c.json(selectSnapshot(deps.store.getState())))
-    .get(API_ROUTES.CONFIG, (c) => c.json(selectConfig(deps.store.getState())))
-    .get(API_ROUTES.PROCESSES, (c) => c.json(selectProcesses(deps.store.getState())))
-    .post(API_ROUTES.COMMAND, async (c) => {
-      const action = await c.req.json<Action>();
-      await deps.store.dispatch(action);
-      return c.body(null, 204);
-    })
-    .get(API_ROUTES.EVENTS, (c) => {
-      return streamSSE(c, async (stream) => {
-        await stream.writeSSE({ data: JSON.stringify(buildInitEvent()) });
-
-        const push = (event: MainEvent): void => {
-          void stream.writeSSE({ data: JSON.stringify(event) });
-        };
-        subscribers.add(push);
-
-        await new Promise<void>((resolve) => {
-          c.req.raw.signal.addEventListener('abort', () => {
-            subscribers.delete(push);
-            resolve();
-          });
-        });
+    const buildInitEvent = (): MainEvent =>
+      withMeta({
+        type: "init",
+        config: selectConfig(deps.store.getState()),
+        snapshot: selectSnapshot(deps.store.getState()),
+        processes: selectProcesses(deps.store.getState()),
       });
-    });
 
-  return { app: routes, broadcast };
-}
+    const broadcast = (event: MainEvent): void => {
+      const eventWithFreshMeta = "snapshot" in event ? withMeta(event) : event;
+      for (const queue of subscribers) {
+        Queue.offerUnsafe(queue, eventWithFreshMeta);
+      }
+    };
 
-export type ApiApp = ReturnType<typeof createApiApp>;
+    const handlers = HttpApiBuilder.group(AntiRsiApi, "root", (handlers) =>
+      handlers
+        .handle("snapshot", () =>
+          Effect.sync(() => selectSnapshot(deps.store.getState())),
+        )
+        .handle("config", () =>
+          Effect.sync(() => selectConfig(deps.store.getState())),
+        )
+        .handle("processes", () =>
+          Effect.sync(() => selectProcesses(deps.store.getState())),
+        )
+        .handle("command", ({ payload }) =>
+          Effect.sync(() => {
+            deps.store.dispatch(payload);
+          }),
+        )
+        .handle("events", () =>
+          Effect.gen(function* () {
+            const queue = yield* Queue.unbounded<MainEvent>();
+            subscribers.add(queue);
 
-/** Hono RPC app type for typed `hc` clients (web, tests). */
-export type ApiAppType = ApplyGlobalResponse<
-  ReturnType<typeof createApiApp>['app'],
-  {
-    400: { json: ApiErrorBody };
-    404: { json: ApiErrorBody };
-  }
->;
+            return Stream.make(buildInitEvent()).pipe(
+              Stream.concat(Stream.fromQueue(queue)),
+              Stream.ensuring(
+                Effect.sync(() => {
+                  subscribers.delete(queue);
+                }),
+              ),
+            );
+          }),
+        ),
+    );
+
+    const routes = HttpApiBuilder.layer(AntiRsiApi).pipe(
+      Layer.provide(handlers),
+    );
+
+    const cors = HttpRouter.middleware(
+      HttpMiddleware.cors({
+        allowedOrigins: (origin) => LOOPBACK_ORIGIN_PATTERN.test(origin),
+        allowedMethods: ["GET", "POST", "OPTIONS"],
+        allowedHeaders: ["Content-Type"],
+      }),
+      { global: true },
+    );
+
+    return { layer: Layer.mergeAll(routes, cors), broadcast };
+  });
+
+export const createApiApp = (deps: ApiServerDeps): ApiApp =>
+  Effect.runSync(makeApiApp(deps));
+
+export type ApiApp = Effect.Success<ReturnType<typeof makeApiApp>>;

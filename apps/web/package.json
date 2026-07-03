@@ -13,10 +13,10 @@
     "@antirsi/contracts": "workspace:*",
     "@antirsi/core": "workspace:*",
     "@antirsi/server": "workspace:*",
-    "@tauri-apps/api": "^2.11.1",
-    "hono": "^4.12.21",
     "@tanstack/solid-router": "^1.121.0",
+    "@tauri-apps/api": "^2.11.1",
     "class-variance-authority": "^0.7.1",
+    "effect": "^4.0.0-beta.93",
     "lucide-solid": "^0.544.0",
     "solid-js": "^1.9.10"
   },

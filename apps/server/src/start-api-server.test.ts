@@ -100,6 +100,19 @@ describe('startApiServer', () => {
     expect(snapshot.paused).toBe(true);
   });
 
+  it('rejects invalid command payloads', async () => {
+    const store = createStore();
+    server = await startApiServer({ store });
+
+    const response = await fetch(new URL(API_ROUTES.COMMAND, server.url.href), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'NOT_A_COMMAND' }),
+    });
+
+    expect(response.status).toBe(400);
+  });
+
   it('sends init event on SSE connect', async () => {
     const store = createStore();
     server = await startApiServer({ store });
