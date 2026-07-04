@@ -1,4 +1,4 @@
-import type { ApiServerHandle } from "@antirsi/server";
+import type { ApiServerHandle } from "../server";
 import type { AntiRsiEngine } from "./antirsi-engine";
 import { saveConfig } from "./config-store";
 import { startWatchedProcessPolling } from "./process-service";

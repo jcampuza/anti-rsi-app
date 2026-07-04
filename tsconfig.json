@@ -4,7 +4,6 @@
     { "path": "./packages/core" },
     { "path": "./packages/contracts" },
     { "path": "./packages/utils" },
-    { "path": "./apps/server" },
     { "path": "./apps/tauri-sidecar" },
     { "path": "./apps/web" }
   ]

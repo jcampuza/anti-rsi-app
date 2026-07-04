@@ -7,9 +7,9 @@ Distribution builds target Apple Silicon Macs only. Intel Macs are not supported
 - `apps/tauri` contains the native Tauri shell, macOS overlay window commands, icons, and bundle config.
 - `apps/tauri-sidecar` contains the Node sidecar that runs the AntiRSI engine and loopback HTTP API.
 - `apps/web` contains the Solid renderer app used by Tauri.
-- `apps/server` contains the loopback HTTP API shared by the sidecar.
 - `packages/core` contains platform-agnostic AntiRSI logic and store code.
 - `packages/contracts` contains shared event and runtime metadata types.
+- `packages/utils` contains shared runtime utilities.
 
 ## Commands
 
@@ -29,11 +29,11 @@ bun run package
 
 ```text
 apps/
-  server/
   tauri/
   tauri-sidecar/
   web/
 packages/
   contracts/
   core/
+  utils/
 ```

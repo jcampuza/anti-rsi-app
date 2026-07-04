@@ -5,9 +5,8 @@ This is a Bun monorepo for a Tauri app.
 ## Apps
 
 - `apps/web` - `@antirsi/web`
-- `apps/server` - `@antirsi/server`
 - `apps/tauri` - `@antirsi/tauri` Tauri desktop app; Rust lives in `apps/tauri/src-tauri`
-- `apps/tauri-sidecar` - `@antirsi/tauri-sidecar`
+- `apps/tauri-sidecar` - `@antirsi/tauri-sidecar`; owns the sidecar runtime and loopback HTTP API
 
 ## Packages
 
@@ -20,3 +19,4 @@ This is a Bun monorepo for a Tauri app.
 - Typecheck all workspaces: `bun run typecheck`
 - Build all workspaces: `bun run build`
 - Build the Tauri app: `bun run build:tauri`
+- Dev: `bun run dev`

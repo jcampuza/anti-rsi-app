@@ -19,7 +19,7 @@ export interface ApiServerDeps {
 }
 
 export class ApiStore extends Context.Service<ApiStore, ApiServerDeps>()(
-  "@antirsi/server/ApiStore",
+  "@antirsi/tauri-sidecar/server/ApiStore",
 ) {}
 
 type SnapshotMainEvent = Extract<
@@ -35,7 +35,7 @@ interface ApiEventBusService {
 export class ApiEventBus extends Context.Service<
   ApiEventBus,
   ApiEventBusService
->()("@antirsi/server/ApiEventBus") {}
+>()("@antirsi/tauri-sidecar/server/ApiEventBus") {}
 
 const makeApiEventBus = Effect.gen(function* () {
   const deps = yield* ApiStore;
