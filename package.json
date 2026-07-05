@@ -14,9 +14,9 @@
   },
   "scripts": {
     "dev": "bun run --cwd apps/tauri dev",
-    "dev:web": "PORT=5733 VITE_API_BASE_URL=http://127.0.0.1:56321/ bun run --cwd apps/web dev -- --host 127.0.0.1",
+    "dev:web": "PORT=5733 bun run --cwd apps/web dev -- --host 127.0.0.1",
     "build": "vp run --filter './packages/*' build && bun run build:tauri",
-    "build:web": "VITE_API_BASE_URL=http://127.0.0.1:56321/ vp run --filter @antirsi/web build",
+    "build:web": "vp run --filter @antirsi/web build",
     "build:tauri": "bun run --cwd apps/tauri build",
     "typecheck": "vp run -r typecheck",
     "lint": "eslint --cache .",

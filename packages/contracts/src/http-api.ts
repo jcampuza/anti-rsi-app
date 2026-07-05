@@ -1,8 +1,7 @@
-import type {
-  Action,
-  AntiRsiConfig,
-  AntiRsiEvent,
-  AntiRsiSnapshot,
+import {
+  antiRsiConfigSchema,
+  breakConfigSchema,
+  workBreakConfigSchema,
 } from "@antirsi/core";
 import { Schema } from "effect";
 import {
@@ -13,105 +12,25 @@ import {
 } from "effect/unstable/httpapi";
 
 import { API_ROUTES } from "./api";
-import type { MainEvent, SnapshotEventMeta } from "./ipc";
+import { AntiRsiSnapshotSchema, BreakTypeSchema, MainEventSchema } from "./ipc";
+export {
+  AntiRsiEventSchema,
+  AntiRsiSnapshotSchema,
+  MainEventSchema,
+} from "./ipc";
 
-const BreakTypeSchema = Schema.Literals(["mini", "work"]);
-
-const BreakConfigSchema = Schema.Struct({
-  intervalSeconds: Schema.Finite,
-  durationSeconds: Schema.Finite,
-});
-
-const WorkBreakConfigSchema = Schema.Struct({
-  enabled: Schema.Boolean,
-  intervalSeconds: Schema.Finite,
-  durationSeconds: Schema.Finite,
-  postponeSeconds: Schema.Finite,
-});
-
-export const AntiRsiConfigSchema = Schema.Struct({
-  mini: BreakConfigSchema,
-  work: WorkBreakConfigSchema,
-  tickIntervalMs: Schema.Finite,
-  naturalBreakContinuationWindowSeconds: Schema.Finite,
-  breakWarningLeadSeconds: Schema.Finite,
-  waitForActivityPauseBeforeBreak: Schema.Boolean,
-  breakStartGraceSeconds: Schema.Finite,
-  maxBreakStartDelaySeconds: Schema.Finite,
-}) satisfies Schema.ConstraintCodec<AntiRsiConfig>;
+export const AntiRsiConfigSchema = antiRsiConfigSchema;
 
 const PartialAntiRsiConfigSchema = Schema.Struct({
-  mini: Schema.optionalKey(BreakConfigSchema),
-  work: Schema.optionalKey(WorkBreakConfigSchema),
+  mini: Schema.optionalKey(breakConfigSchema),
+  work: Schema.optionalKey(workBreakConfigSchema),
   tickIntervalMs: Schema.optionalKey(Schema.Finite),
   naturalBreakContinuationWindowSeconds: Schema.optionalKey(Schema.Finite),
   breakWarningLeadSeconds: Schema.optionalKey(Schema.Finite),
   waitForActivityPauseBeforeBreak: Schema.optionalKey(Schema.Boolean),
   breakStartGraceSeconds: Schema.optionalKey(Schema.Finite),
   maxBreakStartDelaySeconds: Schema.optionalKey(Schema.Finite),
-}) satisfies Schema.ConstraintCodec<Partial<AntiRsiConfig>>;
-
-const AntiRsiTimingsSchema = Schema.Struct({
-  miniElapsed: Schema.Finite,
-  miniTaking: Schema.Finite,
-  workElapsed: Schema.Finite,
-  workTaking: Schema.Finite,
 });
-
-const AntiRsiBreakWarningSchema = Schema.Struct({
-  breakType: BreakTypeSchema,
-  phase: Schema.Literals(["countdown", "waiting-for-activity-pause"]),
-  startsInSeconds: Schema.Finite,
-  forcedStartInSeconds: Schema.NullOr(Schema.Finite),
-});
-
-export const AntiRsiSnapshotSchema = Schema.Struct({
-  state: Schema.Literals([
-    "normal",
-    "pending-mini",
-    "pending-work",
-    "in-mini",
-    "in-work",
-  ]),
-  timings: AntiRsiTimingsSchema,
-  lastIdleSeconds: Schema.Finite,
-  lastUpdatedSeconds: Schema.Finite,
-  paused: Schema.Boolean,
-  timersRunning: Schema.Boolean,
-  breakWarning: Schema.NullOr(AntiRsiBreakWarningSchema),
-}) satisfies Schema.ConstraintCodec<AntiRsiSnapshot>;
-
-export const AntiRsiEventSchema = Schema.Union([
-  Schema.Struct({ type: Schema.Literal("mini-break-start") }),
-  Schema.Struct({
-    type: Schema.Literal("work-break-start"),
-    naturalContinuation: Schema.Boolean,
-  }),
-  Schema.Struct({
-    type: Schema.Literal("break-update"),
-    breakType: BreakTypeSchema,
-  }),
-  Schema.Struct({
-    type: Schema.Literal("break-end"),
-    breakType: BreakTypeSchema,
-  }),
-  Schema.Struct({
-    type: Schema.Literal("break-warning-start"),
-    breakType: BreakTypeSchema,
-  }),
-  Schema.Struct({
-    type: Schema.Literal("break-warning-update"),
-    breakType: BreakTypeSchema,
-  }),
-  Schema.Struct({
-    type: Schema.Literal("break-warning-end"),
-    breakType: BreakTypeSchema,
-  }),
-  Schema.Struct({ type: Schema.Literal("timings-reset") }),
-  Schema.Struct({ type: Schema.Literal("status-update") }),
-  Schema.Struct({ type: Schema.Literal("paused") }),
-  Schema.Struct({ type: Schema.Literal("resumed") }),
-]) satisfies Schema.ConstraintCodec<AntiRsiEvent>;
 
 export const ActionSchema = Schema.Union([
   Schema.Struct({
@@ -153,47 +72,7 @@ export const ActionSchema = Schema.Union([
     processes: Schema.mutable(Schema.Array(Schema.String)),
   }),
   Schema.Struct({ type: Schema.Literal("RESET_CONFIG") }),
-]) satisfies Schema.ConstraintCodec<Action>;
-
-export const SnapshotEventMetaSchema = Schema.Struct({
-  sequence: Schema.Finite,
-  serverMonotonicMs: Schema.Finite,
-}) satisfies Schema.ConstraintCodec<SnapshotEventMeta>;
-
-const SnapshotEventPayloadSchema = {
-  snapshot: AntiRsiSnapshotSchema,
-  meta: Schema.optionalKey(SnapshotEventMetaSchema),
-} as const;
-
-export const MainEventSchema = Schema.Union([
-  Schema.Struct({
-    type: Schema.Literal("antirsi"),
-    event: AntiRsiEventSchema,
-    ...SnapshotEventPayloadSchema,
-  }),
-  Schema.Struct({
-    type: Schema.Literal("timers-paused"),
-    ...SnapshotEventPayloadSchema,
-  }),
-  Schema.Struct({
-    type: Schema.Literal("timers-resumed"),
-    ...SnapshotEventPayloadSchema,
-  }),
-  Schema.Struct({
-    type: Schema.Literal("config-changed"),
-    config: AntiRsiConfigSchema,
-  }),
-  Schema.Struct({
-    type: Schema.Literal("processes-updated"),
-    list: Schema.mutable(Schema.Array(Schema.String)),
-  }),
-  Schema.Struct({
-    type: Schema.Literal("init"),
-    config: AntiRsiConfigSchema,
-    processes: Schema.mutable(Schema.Array(Schema.String)),
-    ...SnapshotEventPayloadSchema,
-  }),
-]) satisfies Schema.ConstraintCodec<MainEvent>;
+]);
 
 const RootGroup = HttpApiGroup.make("root", { topLevel: true }).add(
   HttpApiEndpoint.get("snapshot", API_ROUTES.SNAPSHOT, {

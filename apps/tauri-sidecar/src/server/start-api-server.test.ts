@@ -3,10 +3,20 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { API_ROUTES } from "@antirsi/contracts";
-import { createStore, selectSnapshot } from "@antirsi/core";
+import { Context, Effect, Exit, Layer, Scope } from "effect";
 import { afterEach, describe, expect, it } from "vitest";
+import {
+  AntiRsiRuntime,
+  makeAntiRsiRuntimeLayer,
+  type AntiRsiRuntimeService,
+} from "../lib/antirsi-runtime";
+import { IdleProvider } from "../lib/idle-provider";
 
-import { startApiServer, type ApiServerHandle } from "./start-api-server";
+import {
+  startApiServerEffect,
+  type ApiServerDeps,
+  type ApiServerHandle,
+} from "./start-api-server";
 
 interface SseSession {
   next: () => Promise<unknown>;
@@ -58,13 +68,50 @@ const openSseSession = (eventsUrl: URL): SseSession => {
   };
 };
 
+const TestIdleProviderLayer = Layer.succeed(IdleProvider)({
+  getSystemIdleTime: Effect.succeed(0),
+});
+
+const makeRuntime = async (): Promise<{
+  readonly runtime: AntiRsiRuntimeService;
+  readonly close: () => Promise<void>;
+}> => {
+  const scope = Scope.makeUnsafe();
+  const context = await Effect.runPromise(
+    Layer.buildWithMemoMap(
+      makeAntiRsiRuntimeLayer().pipe(Layer.provide(TestIdleProviderLayer)),
+      Layer.makeMemoMapUnsafe(),
+      scope,
+    ),
+  );
+  return {
+    runtime: Context.get(context, AntiRsiRuntime),
+    close: () => Effect.runPromise(Scope.close(scope, Exit.void)),
+  };
+};
+
+const startTestApiServer = (
+  deps: ApiServerDeps,
+  runtime: AntiRsiRuntimeService,
+): Promise<ApiServerHandle> =>
+  Effect.runPromise(
+    startApiServerEffect(deps).pipe(
+      Effect.provideService(AntiRsiRuntime, runtime),
+    ),
+  );
+
 describe("startApiServer", () => {
   let server: ApiServerHandle | undefined;
+  let runtime: AntiRsiRuntimeService | undefined;
+  let closeRuntime: (() => Promise<void>) | undefined;
   const tempDirs: string[] = [];
 
   afterEach(async () => {
     await server?.close();
     server = undefined;
+    await closeRuntime?.();
+    runtime = undefined;
+    closeRuntime = undefined;
     await Promise.all(
       tempDirs
         .splice(0)
@@ -73,8 +120,8 @@ describe("startApiServer", () => {
   });
 
   it("serves snapshot, config, and processes", async () => {
-    const store = createStore();
-    server = await startApiServer({ store });
+    ({ runtime, close: closeRuntime } = await makeRuntime());
+    server = await startTestApiServer({}, runtime);
     const baseUrl = server.url.href;
 
     const snapshotResponse = await fetch(new URL(API_ROUTES.SNAPSHOT, baseUrl));
@@ -94,8 +141,8 @@ describe("startApiServer", () => {
   });
 
   it("dispatches commands via POST /command", async () => {
-    const store = createStore();
-    server = await startApiServer({ store });
+    ({ runtime, close: closeRuntime } = await makeRuntime());
+    server = await startTestApiServer({}, runtime);
     const baseUrl = server.url.href;
 
     const response = await fetch(new URL(API_ROUTES.COMMAND, baseUrl), {
@@ -114,8 +161,8 @@ describe("startApiServer", () => {
   });
 
   it("rejects invalid command payloads", async () => {
-    const store = createStore();
-    server = await startApiServer({ store });
+    ({ runtime, close: closeRuntime } = await makeRuntime());
+    server = await startTestApiServer({}, runtime);
 
     const response = await fetch(new URL(API_ROUTES.COMMAND, server.url.href), {
       method: "POST",
@@ -127,8 +174,8 @@ describe("startApiServer", () => {
   });
 
   it("sends init event on SSE connect", async () => {
-    const store = createStore();
-    server = await startApiServer({ store });
+    ({ runtime, close: closeRuntime } = await makeRuntime());
+    server = await startTestApiServer({}, runtime);
     const session = openSseSession(new URL(API_ROUTES.EVENTS, server.url.href));
 
     const event = (await session.next()) as { type: string };
@@ -137,14 +184,14 @@ describe("startApiServer", () => {
   });
 
   it("broadcasts events to connected SSE clients", async () => {
-    const store = createStore();
-    server = await startApiServer({ store });
+    ({ runtime, close: closeRuntime } = await makeRuntime());
+    server = await startTestApiServer({}, runtime);
     const session = openSseSession(new URL(API_ROUTES.EVENTS, server.url.href));
 
     const initEvent = (await session.next()) as { type: string };
     expect(initEvent.type).toBe("init");
 
-    server.broadcast({ type: "processes-updated", list: ["Zoom"] });
+    await Effect.runPromise(runtime.setProcesses(["Zoom"]));
 
     const nextEvent = (await session.next()) as {
       type: string;
@@ -156,18 +203,16 @@ describe("startApiServer", () => {
   });
 
   it("broadcasts timers-paused events to connected SSE clients", async () => {
-    const store = createStore();
-    server = await startApiServer({ store });
+    ({ runtime, close: closeRuntime } = await makeRuntime());
+    server = await startTestApiServer({}, runtime);
     const session = openSseSession(new URL(API_ROUTES.EVENTS, server.url.href));
 
     const initEvent = (await session.next()) as { type: string };
     expect(initEvent.type).toBe("init");
 
-    const pausedSnapshot = {
-      ...selectSnapshot(store.getState()),
-      paused: true,
-    };
-    server.broadcast({ type: "timers-paused", snapshot: pausedSnapshot });
+    await Effect.runPromise(
+      runtime.dispatch({ type: "SET_USER_PAUSED", value: true }),
+    );
 
     const nextEvent = (await session.next()) as {
       type: string;
@@ -179,8 +224,8 @@ describe("startApiServer", () => {
   });
 
   it("sets CORS headers for loopback origins", async () => {
-    const store = createStore();
-    server = await startApiServer({ store });
+    ({ runtime, close: closeRuntime } = await makeRuntime());
+    server = await startTestApiServer({}, runtime);
     const baseUrl = server.url.href;
 
     const response = await fetch(new URL(API_ROUTES.SNAPSHOT, baseUrl), {
@@ -193,12 +238,12 @@ describe("startApiServer", () => {
   });
 
   it("writes server lifecycle logs to the configured file", async () => {
-    const store = createStore();
+    ({ runtime, close: closeRuntime } = await makeRuntime());
     const logDir = await mkdtemp(join(tmpdir(), "antirsi-server-"));
     tempDirs.push(logDir);
     const logFilePath = join(logDir, "anti-rsi.log");
 
-    server = await startApiServer({ store, logFilePath });
+    server = await startTestApiServer({ logFilePath }, runtime);
     await server.close();
     server = undefined;
 
