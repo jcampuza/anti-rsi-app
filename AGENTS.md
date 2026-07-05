@@ -2,6 +2,8 @@
 
 This is a Bun monorepo for a Tauri app.
 
+The server application uses Effect v4 beta. When referencing or updating code that uses effect invoke the `/effect-reference` skill. 
+
 ## Apps
 
 - `apps/web` - `@antirsi/web`

@@ -15,3 +15,4 @@ artifacts
 # Exclude any *.tsbuildinfo file, including tsconfig.tsbuildinfo
 *.tsbuildinfo
 **/tsconfig.tsbuildinfo
+.references/

@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest"
-import { antiRsiConfigSchema, parseAntiRsiConfig } from "./config-schema"
+import { describe, expect, it } from "vitest";
+import { Schema } from "effect";
+import { antiRsiConfigSchema, parseAntiRsiConfig } from "./config-schema";
 
 const validConfig = {
   mini: { intervalSeconds: 240, durationSeconds: 13 },
@@ -10,14 +11,14 @@ const validConfig = {
   },
   tickIntervalMs: 500,
   naturalBreakContinuationWindowSeconds: 30,
-}
+};
 
 describe("parseAntiRsiConfig", () => {
   it("parses a valid config", () => {
-    const config = parseAntiRsiConfig(validConfig)
-    expect(config.mini.intervalSeconds).toBe(240)
-    expect(config.work.enabled).toBe(true)
-  })
+    const config = parseAntiRsiConfig(validConfig);
+    expect(config.mini.intervalSeconds).toBe(240);
+    expect(config.work.enabled).toBe(true);
+  });
 
   it("defaults work.enabled to true when omitted", () => {
     const config = parseAntiRsiConfig({
@@ -27,9 +28,9 @@ describe("parseAntiRsiConfig", () => {
         durationSeconds: 480,
         postponeSeconds: 600,
       },
-    })
-    expect(config.work.enabled).toBe(true)
-  })
+    });
+    expect(config.work.enabled).toBe(true);
+  });
 
   it("rejects non-positive intervalSeconds", () => {
     expect(() =>
@@ -37,12 +38,12 @@ describe("parseAntiRsiConfig", () => {
         ...validConfig,
         mini: { intervalSeconds: 0, durationSeconds: 13 },
       }),
-    ).toThrow()
-  })
+    ).toThrow();
+  });
 
   it("rejects missing required fields", () => {
-    expect(() => parseAntiRsiConfig({ mini: validConfig.mini })).toThrow()
-  })
+    expect(() => parseAntiRsiConfig({ mini: validConfig.mini })).toThrow();
+  });
 
   it("rejects negative naturalBreakContinuationWindowSeconds", () => {
     expect(() =>
@@ -50,16 +51,16 @@ describe("parseAntiRsiConfig", () => {
         ...validConfig,
         naturalBreakContinuationWindowSeconds: -1,
       }),
-    ).toThrow()
-  })
-})
+    ).toThrow();
+  });
+});
 
 describe("antiRsiConfigSchema", () => {
   it("accepts zero for naturalBreakContinuationWindowSeconds", () => {
-    const result = antiRsiConfigSchema.safeParse({
+    const config = Schema.decodeUnknownSync(antiRsiConfigSchema)({
       ...validConfig,
       naturalBreakContinuationWindowSeconds: 0,
-    })
-    expect(result.success).toBe(true)
-  })
-})
+    });
+    expect(config.naturalBreakContinuationWindowSeconds).toBe(0);
+  });
+});

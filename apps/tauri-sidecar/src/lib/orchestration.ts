@@ -1,58 +1,47 @@
-import type { ApiServerHandle } from "../server";
-import type { AntiRsiEngine } from "./antirsi-engine";
-import { saveConfig } from "./config-store";
-import { startWatchedProcessPolling } from "./process-service";
+import { Effect, Stream, type Scope } from "effect";
+import { AntiRsiRuntime } from "./antirsi-runtime";
+import { ConfigStore } from "./config-store";
+import { ProcessService } from "./process-service";
 
 type SidecarOrchestrationDeps = {
-  antiRsiEngine: AntiRsiEngine;
-  apiServer: ApiServerHandle;
-  userDataDir: string;
+  readonly userDataDir: string;
 };
 
 export const startSidecarOrchestration = ({
-  antiRsiEngine,
-  apiServer,
   userDataDir,
-}: SidecarOrchestrationDeps): void => {
-  let lastStatusBroadcastAt = 0;
+}: SidecarOrchestrationDeps): Effect.Effect<
+  void,
+  never,
+  AntiRsiRuntime | ConfigStore | ProcessService | Scope.Scope
+> =>
+  Effect.gen(function* () {
+    const runtime = yield* AntiRsiRuntime;
+    const configStore = yield* ConfigStore;
+    const processService = yield* ProcessService;
 
-  antiRsiEngine.onConfigChange(({ config }) => {
-    apiServer.broadcast({ type: "config-changed", config });
-    void saveConfig(userDataDir, config);
+    yield* runtime.config.pipe(
+      Effect.flatMap((config) => configStore.save(userDataDir, config)),
+    );
+
+    yield* runtime.events.pipe(
+      Stream.runForEach((event) => {
+        if (event.type !== "config-changed") {
+          return Effect.void;
+        }
+        return configStore.save(userDataDir, event.config);
+      }),
+      Effect.forkScoped,
+    );
+
+    yield* processService.startPolling({
+      onProcessesChanged: (processes) =>
+        Effect.gen(function* () {
+          yield* runtime.setProcesses(processes);
+          if (processes.length > 0) {
+            yield* runtime.addInhibitor("process:zoom");
+          } else {
+            yield* runtime.removeInhibitor("process:zoom");
+          }
+        }),
+    });
   });
-
-  antiRsiEngine.onEvent(({ event, snapshot }) => {
-    if (event.type === "paused") {
-      apiServer.broadcast({ type: "timers-paused", snapshot });
-      return;
-    }
-    if (event.type === "resumed") {
-      apiServer.broadcast({ type: "timers-resumed", snapshot });
-      return;
-    }
-
-    const now = Date.now();
-    if (event.type === "status-update") {
-      if (now - lastStatusBroadcastAt < 5000) {
-        return;
-      }
-      lastStatusBroadcastAt = now;
-    } else if (event.type === "timings-reset") {
-      lastStatusBroadcastAt = now;
-    }
-
-    apiServer.broadcast({ type: "antirsi", event, snapshot });
-  });
-
-  startWatchedProcessPolling({
-    onProcessesChanged: (processes) => {
-      antiRsiEngine.setProcesses(processes);
-      if (processes.length > 0) {
-        antiRsiEngine.addInhibitor("process:zoom");
-      } else {
-        antiRsiEngine.removeInhibitor("process:zoom");
-      }
-      apiServer.broadcast({ type: "processes-updated", list: processes });
-    },
-  });
-};

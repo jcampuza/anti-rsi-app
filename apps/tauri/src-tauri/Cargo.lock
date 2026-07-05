@@ -45,11 +45,16 @@ dependencies = [
 name = "antirsi-tauri"
 version = "0.1.0"
 dependencies = [
+ "futures-util",
  "objc2-app-kit",
+ "reqwest",
+ "serde",
+ "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-opener",
  "tauri-plugin-shell",
+ "tokio",
 ]
 
 [[package]]

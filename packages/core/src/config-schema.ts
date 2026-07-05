@@ -1,39 +1,45 @@
-import { z } from "zod"
+import { Effect, Schema } from "effect";
 
-export const breakConfigSchema = z.object({
-  intervalSeconds: z.number().positive(),
-  durationSeconds: z.number().positive(),
-})
+const PositiveFinite = Schema.Finite.check(Schema.isGreaterThan(0));
+const NonNegativeFinite = Schema.Finite.check(Schema.isGreaterThanOrEqualTo(0));
 
-export const workBreakConfigSchema = z.object({
-  enabled: z.boolean().default(true),
-  intervalSeconds: z.number().positive(),
-  durationSeconds: z.number().positive(),
-  postponeSeconds: z.number().positive(),
-})
+export const breakConfigSchema = Schema.Struct({
+  intervalSeconds: PositiveFinite,
+  durationSeconds: PositiveFinite,
+});
 
-export const antiRsiConfigSchema = z.object({
+export const workBreakConfigSchema = Schema.Struct({
+  enabled: Schema.Boolean.pipe(
+    Schema.withDecodingDefaultTypeKey(Effect.succeed(true)),
+  ),
+  intervalSeconds: PositiveFinite,
+  durationSeconds: PositiveFinite,
+  postponeSeconds: PositiveFinite,
+});
+
+export const antiRsiConfigSchema = Schema.Struct({
   mini: breakConfigSchema,
   work: workBreakConfigSchema,
-  tickIntervalMs: z.number().positive(),
-  naturalBreakContinuationWindowSeconds: z.number().nonnegative(),
-  breakWarningLeadSeconds: z.number().nonnegative().default(10),
-  waitForActivityPauseBeforeBreak: z.boolean().default(false),
-  breakStartGraceSeconds: z.number().nonnegative().default(2),
-  maxBreakStartDelaySeconds: z.number().nonnegative().default(30),
-})
+  tickIntervalMs: PositiveFinite,
+  naturalBreakContinuationWindowSeconds: NonNegativeFinite,
+  breakWarningLeadSeconds: NonNegativeFinite.pipe(
+    Schema.withDecodingDefaultTypeKey(Effect.succeed(10)),
+  ),
+  waitForActivityPauseBeforeBreak: Schema.Boolean.pipe(
+    Schema.withDecodingDefaultTypeKey(Effect.succeed(false)),
+  ),
+  breakStartGraceSeconds: NonNegativeFinite.pipe(
+    Schema.withDecodingDefaultTypeKey(Effect.succeed(2)),
+  ),
+  maxBreakStartDelaySeconds: NonNegativeFinite.pipe(
+    Schema.withDecodingDefaultTypeKey(Effect.succeed(30)),
+  ),
+});
 
-export type BreakConfig = z.infer<typeof breakConfigSchema>
-export type WorkBreakConfig = z.infer<typeof workBreakConfigSchema>
-export type AntiRsiConfig = z.infer<typeof antiRsiConfigSchema>
-
-/** @deprecated Use `breakConfigSchema` */
-export const BreakConfigSchema = breakConfigSchema
-/** @deprecated Use `workBreakConfigSchema` */
-export const WorkBreakConfigSchema = workBreakConfigSchema
-/** @deprecated Use `antiRsiConfigSchema` */
-export const AntiRsiConfigSchema = antiRsiConfigSchema
+export type BreakConfig = typeof breakConfigSchema.Type;
+export type WorkBreakConfig = typeof workBreakConfigSchema.Type;
+export type AntiRsiConfig = typeof antiRsiConfigSchema.Type;
 
 export function parseAntiRsiConfig(input: unknown): AntiRsiConfig {
-  return antiRsiConfigSchema.parse(input)
+  return Schema.decodeUnknownSync(antiRsiConfigSchema)(input);
 }

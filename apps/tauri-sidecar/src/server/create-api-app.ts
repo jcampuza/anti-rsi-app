@@ -1,26 +1,16 @@
 import { type MainEvent, type SnapshotEventMeta } from "@antirsi/contracts";
 import { AntiRsiApi } from "@antirsi/contracts/http-api";
-import {
-  selectConfig,
-  selectProcesses,
-  selectSnapshot,
-  type Action,
-  type Store,
-} from "@antirsi/core";
-import { Context, Effect, Layer, Queue, Stream } from "effect";
+import type { AntiRsiEvent, AntiRsiSnapshot, Action } from "@antirsi/core";
+import { Context, Effect, Layer, Stream } from "effect";
 import { HttpMiddleware, HttpRouter } from "effect/unstable/http";
 import { HttpApiBuilder } from "effect/unstable/httpapi";
 import { performance } from "node:perf_hooks";
+import {
+  AntiRsiRuntime,
+  type AntiRsiRuntimeEvent,
+} from "../lib/antirsi-runtime";
 
 import { LOOPBACK_ORIGIN_PATTERN } from "./constants";
-
-export interface ApiServerDeps {
-  store: Store;
-}
-
-export class ApiStore extends Context.Service<ApiStore, ApiServerDeps>()(
-  "@antirsi/tauri-sidecar/server/ApiStore",
-) {}
 
 type SnapshotMainEvent = Extract<
   MainEvent,
@@ -28,7 +18,6 @@ type SnapshotMainEvent = Extract<
 >;
 
 interface ApiEventBusService {
-  readonly broadcast: (event: MainEvent) => Effect.Effect<void>;
   readonly events: () => Effect.Effect<Stream.Stream<MainEvent>>;
 }
 
@@ -38,9 +27,8 @@ export class ApiEventBus extends Context.Service<
 >()("@antirsi/tauri-sidecar/server/ApiEventBus") {}
 
 const makeApiEventBus = Effect.gen(function* () {
-  const deps = yield* ApiStore;
+  const runtime = yield* AntiRsiRuntime;
   let sequence = 0;
-  const subscribers = new Set<Queue.Queue<MainEvent>>();
 
   const nextMeta = (): SnapshotEventMeta => ({
     sequence: ++sequence,
@@ -50,38 +38,53 @@ const makeApiEventBus = Effect.gen(function* () {
   const withMeta = <T extends SnapshotMainEvent>(event: T): T =>
     ({ ...event, meta: nextMeta() }) as T;
 
-  const buildInitEvent = (): MainEvent =>
-    withMeta({
-      type: "init",
-      config: selectConfig(deps.store.getState()),
-      snapshot: selectSnapshot(deps.store.getState()),
-      processes: selectProcesses(deps.store.getState()),
-    });
+  const toMainEvent = (
+    event: AntiRsiEvent,
+    snapshot: AntiRsiSnapshot,
+  ): MainEvent => {
+    if (event.type === "paused") {
+      return withMeta({ type: "timers-paused", snapshot });
+    }
+    if (event.type === "resumed") {
+      return withMeta({ type: "timers-resumed", snapshot });
+    }
+    return withMeta({ type: "antirsi", event, snapshot });
+  };
 
-  const broadcast = Effect.fn("ApiEventBus.broadcast")((event: MainEvent) =>
-    Effect.sync(() => {
-      const eventWithFreshMeta = "snapshot" in event ? withMeta(event) : event;
-      for (const queue of subscribers) {
-        Queue.offerUnsafe(queue, eventWithFreshMeta);
-      }
-    }),
-  );
+  const toSseEvent = (event: AntiRsiRuntimeEvent): MainEvent | null => {
+    switch (event.type) {
+      case "config-changed":
+        return { type: "config-changed", config: event.config };
+      case "processes-changed":
+        return { type: "processes-updated", list: event.processes };
+      case "engine-event":
+        return toMainEvent(event.event, event.snapshot);
+    }
+  };
+
+  const buildInitEvent = Effect.fn("ApiEventBus.buildInitEvent")(function* () {
+    return withMeta({
+      type: "init",
+      config: yield* runtime.config,
+      snapshot: yield* runtime.snapshot,
+      processes: yield* runtime.processes,
+    });
+  });
 
   const events = Effect.fn("ApiEventBus.events")(function* () {
-    const queue = yield* Queue.unbounded<MainEvent>();
-    subscribers.add(queue);
-
-    return Stream.make(buildInitEvent()).pipe(
-      Stream.concat(Stream.fromQueue(queue)),
-      Stream.ensuring(
-        Effect.sync(() => {
-          subscribers.delete(queue);
-        }).pipe(Effect.andThen(Effect.logDebug("SSE client disconnected"))),
+    const initEvent = yield* buildInitEvent();
+    return Stream.make(initEvent).pipe(
+      Stream.concat(
+        runtime.events.pipe(
+          Stream.map(toSseEvent),
+          Stream.filter((event): event is MainEvent => event !== null),
+        ),
       ),
+      Stream.ensuring(Effect.logDebug("SSE client disconnected")),
     );
   });
 
-  return ApiEventBus.of({ broadcast, events });
+  return ApiEventBus.of({ events });
 });
 
 export const ApiEventBusLayer = Layer.effect(ApiEventBus)(makeApiEventBus);
@@ -91,33 +94,18 @@ export const ApiHandlersLayer = HttpApiBuilder.group(
   "root",
   (handlers) =>
     Effect.gen(function* () {
-      const deps = yield* ApiStore;
+      const runtime = yield* AntiRsiRuntime;
       const eventBus = yield* ApiEventBus;
-      const snapshot = Effect.fn("ApiHandlers.snapshot")(() =>
-        Effect.sync(() => selectSnapshot(deps.store.getState())),
-      );
-      const config = Effect.fn("ApiHandlers.config")(() =>
-        Effect.sync(() => selectConfig(deps.store.getState())),
-      );
-      const processes = Effect.fn("ApiHandlers.processes")(() =>
-        Effect.sync(() => selectProcesses(deps.store.getState())),
-      );
       const command = Effect.fn("ApiHandlers.command")((payload: Action) =>
         Effect.logDebug("Dispatching API command", {
           commandType: payload.type,
-        }).pipe(
-          Effect.andThen(
-            Effect.sync(() => {
-              deps.store.dispatch(payload);
-            }),
-          ),
-        ),
+        }).pipe(Effect.andThen(runtime.dispatch(payload))),
       );
 
       return handlers
-        .handle("snapshot", snapshot)
-        .handle("config", config)
-        .handle("processes", processes)
+        .handle("snapshot", () => runtime.snapshot)
+        .handle("config", () => runtime.config)
+        .handle("processes", () => runtime.processes)
         .handle("command", ({ payload }) => command(payload))
         .handle("events", () =>
           Effect.logDebug("SSE client connected").pipe(

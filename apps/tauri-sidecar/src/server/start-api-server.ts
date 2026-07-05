@@ -1,27 +1,13 @@
 import { NodeFileSystem, NodeHttpServer } from "@effect/platform-node";
-import type { MainEvent } from "@antirsi/contracts";
-import type { Store } from "@antirsi/core";
-import {
-  Context,
-  Effect,
-  Layer,
-  Logger,
-  ManagedRuntime,
-  References,
-} from "effect";
+import { Effect, Exit, Layer, Logger, References, Scope } from "effect";
 import { HttpRouter } from "effect/unstable/http";
 import { createServer } from "node:http";
+import { AntiRsiRuntime } from "../lib/antirsi-runtime";
 
 import { LOOPBACK_HOST } from "./constants";
-import {
-  ApiAppLayer,
-  ApiEventBus,
-  ApiEventBusLayer,
-  ApiStore,
-} from "./create-api-app";
+import { ApiAppLayer, ApiEventBusLayer } from "./create-api-app";
 
 export interface ApiServerDeps {
-  store: Store;
   port?: number;
   logFilePath?: string;
 }
@@ -29,54 +15,7 @@ export interface ApiServerDeps {
 export interface ApiServerHandle {
   readonly url: URL;
   readonly close: () => Promise<void>;
-  broadcast: (event: MainEvent) => void;
 }
-
-const waitForServerReady = (server: ReturnType<typeof createServer>) =>
-  Effect.tryPromise({
-    try: (signal) =>
-      new Promise<void>((resolve, reject) => {
-        const cleanup = () => {
-          server.off("error", onError);
-          server.off("listening", onListening);
-          signal.removeEventListener("abort", onAbort);
-        };
-
-        const resolveWhenRequestHandlerMounted = () => {
-          if (server.listenerCount("request") > 0) {
-            cleanup();
-            resolve();
-            return;
-          }
-          setTimeout(resolveWhenRequestHandlerMounted, 0);
-        };
-
-        const onAbort = () => {
-          cleanup();
-          reject(signal.reason);
-        };
-
-        const onError = (error: Error) => {
-          cleanup();
-          reject(error);
-        };
-
-        const onListening = () => {
-          resolveWhenRequestHandlerMounted();
-        };
-
-        signal.addEventListener("abort", onAbort, { once: true });
-        server.on("error", onError);
-
-        if (server.listening) {
-          resolveWhenRequestHandlerMounted();
-          return;
-        }
-
-        server.on("listening", onListening);
-      }),
-    catch: (error) => error,
-  });
 
 const fileLoggerLayer = (logFilePath: string) =>
   Logger.layer(
@@ -87,11 +26,16 @@ const fileLoggerLayer = (logFilePath: string) =>
     Layer.merge(Layer.succeed(References.MinimumLogLevel)("Info")),
   );
 
-export const startApiServerEffect = (deps: ApiServerDeps) =>
+const closeScope = (scope: Scope.Closeable): Effect.Effect<void> =>
+  Scope.close(scope, Exit.void).pipe(Effect.ignore);
+
+export const startApiServerEffect = (
+  deps: ApiServerDeps,
+): Effect.Effect<ApiServerHandle, unknown, AntiRsiRuntime> =>
   Effect.gen(function* () {
     const server = createServer();
+    const antiRsiRuntime = yield* AntiRsiRuntime;
 
-    const apiStoreLayer = Layer.succeed(ApiStore)({ store: deps.store });
     const loggerLayer = deps.logFilePath
       ? fileLoggerLayer(deps.logFilePath)
       : Layer.empty;
@@ -101,7 +45,7 @@ export const startApiServerEffect = (deps: ApiServerDeps) =>
     }).pipe(
       Layer.provideMerge(ApiEventBusLayer),
       Layer.provideMerge(loggerLayer),
-      Layer.provide(apiStoreLayer),
+      Layer.provide(Layer.succeed(AntiRsiRuntime)(antiRsiRuntime)),
       Layer.provide(
         NodeHttpServer.layer(() => server, {
           host: LOOPBACK_HOST,
@@ -110,50 +54,45 @@ export const startApiServerEffect = (deps: ApiServerDeps) =>
       ),
     );
 
-    const runtime = ManagedRuntime.make(serverLayer);
-    const disposeRuntime = Effect.promise(() => runtime.dispose());
-    const context = yield* Effect.catch(runtime.contextEffect, (error) =>
-      disposeRuntime.pipe(Effect.flatMap(() => Effect.fail(error))),
-    );
-    const eventBus = Context.get(context, ApiEventBus);
-
-    yield* waitForServerReady(server).pipe(
+    const scope = Scope.makeUnsafe();
+    const memoMap = Layer.makeMemoMapUnsafe();
+    yield* Layer.buildWithMemoMap(serverLayer, memoMap, scope).pipe(
       Effect.catch((error) =>
-        disposeRuntime.pipe(Effect.flatMap(() => Effect.fail(error))),
+        closeScope(scope).pipe(Effect.flatMap(() => Effect.fail(error))),
       ),
     );
 
     const address = server.address();
     if (typeof address === "string" || address === null) {
-      yield* disposeRuntime;
+      yield* closeScope(scope);
       return yield* Effect.fail(
         new Error("API server did not bind to a TCP address"),
       );
     }
 
     const url = new URL(`http://${LOOPBACK_HOST}:${address.port}/`);
-    yield* Effect.promise(() =>
-      runtime.runPromise(
-        Effect.logInfo("API server started", {
-          port: address.port,
-          url: url.href,
-        }),
-      ),
-    );
+    const logLifecycle = (
+      message: string,
+      annotations?: Record<string, unknown>,
+    ): Effect.Effect<void, unknown> =>
+      deps.logFilePath
+        ? Effect.logInfo(message, annotations).pipe(
+            Effect.provide(fileLoggerLayer(deps.logFilePath)),
+          )
+        : Effect.logInfo(message, annotations);
+
+    yield* logLifecycle("API server started", {
+      port: address.port,
+      url: url.href,
+    });
 
     return {
       url,
       close: () =>
-        runtime
-          .runPromise(Effect.logInfo("API server stopping"))
-          .then(() => runtime.dispose())
-          .then(() => undefined),
-      broadcast: (event: MainEvent) => {
-        Effect.runSync(eventBus.broadcast(event));
-      },
+        Effect.runPromise(
+          logLifecycle("API server stopping").pipe(
+            Effect.andThen(closeScope(scope)),
+          ),
+        ),
     };
   });
-
-export function startApiServer(deps: ApiServerDeps): Promise<ApiServerHandle> {
-  return Effect.runPromise(startApiServerEffect(deps));
-}

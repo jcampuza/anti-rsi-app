@@ -1,4 +1,10 @@
-use std::{fs, sync::Mutex};
+mod native_event_subscriber;
+
+use std::{
+    fs,
+    sync::{mpsc, Mutex},
+    time::Duration,
+};
 
 use tauri::{
     menu::{Menu, MenuItem},
@@ -10,7 +16,10 @@ use tauri_plugin_shell::{
     ShellExt,
 };
 
-const API_PORT: &str = "56321";
+use native_event_subscriber::{start_native_event_subscriber, BreakOverlayKind};
+
+const SIDECAR_READY_PREFIX: &str = "ANTIRSI_API_BASE_URL=";
+const SIDECAR_READY_TIMEOUT: Duration = Duration::from_secs(10);
 const OVERLAY_LABEL_PREFIX: &str = "overlay-";
 const WARNING_LABEL_PREFIX: &str = "warning-";
 const MAIN_WINDOW_LABEL: &str = "main";
@@ -21,6 +30,7 @@ const WARNING_MARGIN: f64 = 16.0;
 
 struct SidecarState {
     child: Mutex<Option<CommandChild>>,
+    api_base_url: String,
 }
 
 #[derive(Default)]
@@ -29,8 +39,8 @@ struct BreakFocusState {
 }
 
 #[tauri::command]
-fn api_base_url() -> String {
-    format!("http://127.0.0.1:{API_PORT}/")
+fn api_base_url(state: State<'_, SidecarState>) -> String {
+    state.api_base_url.clone()
 }
 
 #[tauri::command]
@@ -42,17 +52,60 @@ fn quit_sidecar(state: State<'_, SidecarState>) {
     }
 }
 
+fn runtime_bridge_initialization_script(api_base_url: &str) -> Result<String, String> {
+    let api_base_url_json =
+        serde_json::to_string(api_base_url).map_err(|error| error.to_string())?;
+    Ok(format!(
+        "window.api = {{ meta: {{ versions: {{}}, apiBaseUrl: {api_base_url_json} }} }};"
+    ))
+}
+
+fn api_base_url_for_app(app: &AppHandle) -> String {
+    app.state::<SidecarState>().api_base_url.clone()
+}
+
+fn create_main_window(app: &mut tauri::App, api_base_url: &str) -> Result<(), String> {
+    WebviewWindowBuilder::new(app, MAIN_WINDOW_LABEL, WebviewUrl::App("index.html".into()))
+        .title("Anti RSI")
+        .inner_size(480.0, 360.0)
+        .min_inner_size(360.0, 360.0)
+        .resizable(true)
+        .fullscreen(false)
+        .visible(true)
+        .initialization_script(runtime_bridge_initialization_script(api_base_url)?)
+        .build()
+        .map_err(|error| error.to_string())?;
+
+    Ok(())
+}
+
 #[tauri::command]
 fn show_break_overlay(app: AppHandle, kind: String) -> Result<(), String> {
     let overlay_kind = match kind.as_str() {
-        "mini" | "work" => kind,
+        "mini" => BreakOverlayKind::Mini,
+        "work" => BreakOverlayKind::Work,
         _ => return Err(format!("unsupported break overlay kind: {kind}")),
+    };
+
+    show_break_overlay_for_kind(app, overlay_kind)
+}
+
+fn show_break_overlay_for_kind(
+    app: AppHandle,
+    overlay_kind: BreakOverlayKind,
+) -> Result<(), String> {
+    let api_base_url = api_base_url_for_app(&app);
+    let initialization_script = runtime_bridge_initialization_script(&api_base_url)?;
+    let overlay_kind_query_value = match overlay_kind {
+        BreakOverlayKind::Mini => "mini",
+        BreakOverlayKind::Work => "work",
     };
 
     if !has_break_overlay(&app) {
         remember_frontmost_application(&app);
     }
 
+    hide_break_warnings(&app)?;
     close_break_overlays(&app)?;
 
     app.set_activation_policy(tauri::ActivationPolicy::Accessory)
@@ -66,10 +119,11 @@ fn show_break_overlay(app: AppHandle, kind: String) -> Result<(), String> {
         let position = monitor.position();
         let size = monitor.size();
         let scale_factor = monitor.scale_factor();
-        let url = WebviewUrl::App(format!("index.html?overlay={overlay_kind}").into());
+        let url = WebviewUrl::App(format!("index.html?overlay={overlay_kind_query_value}").into());
 
         let overlay = WebviewWindowBuilder::new(&app, label, url)
             .title("Anti RSI Break")
+            .initialization_script(initialization_script.clone())
             .position(
                 position.x as f64 / scale_factor,
                 position.y as f64 / scale_factor,
@@ -106,9 +160,24 @@ fn show_break_overlay(app: AppHandle, kind: String) -> Result<(), String> {
 
 #[tauri::command]
 fn show_break_warning(app: AppHandle, kind: String) -> Result<(), String> {
-    match kind.as_str() {
-        "mini" | "work" => {}
+    let warning_kind = match kind.as_str() {
+        "mini" => BreakOverlayKind::Mini,
+        "work" => BreakOverlayKind::Work,
         _ => return Err(format!("unsupported break warning kind: {kind}")),
+    };
+
+    show_break_warning_for_kind(app, warning_kind)
+}
+
+fn show_break_warning_for_kind(
+    app: AppHandle,
+    warning_kind: BreakOverlayKind,
+) -> Result<(), String> {
+    let api_base_url = api_base_url_for_app(&app);
+    let initialization_script = runtime_bridge_initialization_script(&api_base_url)?;
+    let warning_kind_query_value = match warning_kind {
+        BreakOverlayKind::Mini => "mini",
+        BreakOverlayKind::Work => "work",
     };
 
     let monitors = app
@@ -133,24 +202,29 @@ fn show_break_warning(app: AppHandle, kind: String) -> Result<(), String> {
         let warning = if let Some(window) = app.get_webview_window(&label) {
             window
         } else {
-            WebviewWindowBuilder::new(&app, label, WebviewUrl::App("index.html?warning=1".into()))
-                .title("Anti RSI Break Warning")
-                .position(x, y)
-                .inner_size(WARNING_WIDTH, WARNING_HEIGHT)
-                .decorations(false)
-                .transparent(true)
-                .resizable(false)
-                .maximizable(false)
-                .minimizable(false)
-                .closable(true)
-                .focused(false)
-                .focusable(false)
-                .skip_taskbar(true)
-                .always_on_top(true)
-                .visible_on_all_workspaces(true)
-                .visible(false)
-                .build()
-                .map_err(|error| error.to_string())?
+            WebviewWindowBuilder::new(
+                &app,
+                label,
+                WebviewUrl::App(format!("index.html?warning={warning_kind_query_value}").into()),
+            )
+            .title("Anti RSI Break Warning")
+            .initialization_script(initialization_script.clone())
+            .position(x, y)
+            .inner_size(WARNING_WIDTH, WARNING_HEIGHT)
+            .decorations(false)
+            .transparent(true)
+            .resizable(false)
+            .maximizable(false)
+            .minimizable(false)
+            .closable(true)
+            .focused(false)
+            .focusable(false)
+            .skip_taskbar(true)
+            .always_on_top(true)
+            .visible_on_all_workspaces(true)
+            .visible(false)
+            .build()
+            .map_err(|error| error.to_string())?
         };
 
         let _ = warning.set_position(tauri::Position::Logical(tauri::LogicalPosition { x, y }));
@@ -180,6 +254,10 @@ fn show_break_warning(app: AppHandle, kind: String) -> Result<(), String> {
 
 #[tauri::command]
 fn hide_break_overlay(app: AppHandle) -> Result<(), String> {
+    hide_break_overlay_for_native(app)
+}
+
+fn hide_break_overlay_for_native(app: AppHandle) -> Result<(), String> {
     close_break_overlays(&app)?;
 
     app.set_activation_policy(tauri::ActivationPolicy::Accessory)
@@ -192,6 +270,10 @@ fn hide_break_overlay(app: AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 fn hide_break_warning(app: AppHandle) -> Result<(), String> {
+    hide_break_warnings_for_native(app)
+}
+
+fn hide_break_warnings_for_native(app: AppHandle) -> Result<(), String> {
     hide_break_warnings(&app)
 }
 
@@ -343,28 +425,44 @@ fn create_tray(app: &mut tauri::App) -> tauri::Result<()> {
     Ok(())
 }
 
-fn spawn_sidecar(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+fn parse_sidecar_api_base_url(line: &str) -> Option<String> {
+    let value = line.trim().strip_prefix(SIDECAR_READY_PREFIX)?;
+    if !value.starts_with("http://127.0.0.1:") {
+        return None;
+    }
+    Some(value.to_string())
+}
+
+fn spawn_sidecar(app: &mut tauri::App) -> Result<String, Box<dyn std::error::Error>> {
     let app_data_dir = app.path().app_data_dir()?;
     fs::create_dir_all(&app_data_dir)?;
 
     let user_data_dir = app_data_dir.to_string_lossy().to_string();
+    let parent_pid = std::process::id().to_string();
     let command = app.shell().sidecar("antirsi-sidecar")?.args([
         "--port",
-        API_PORT,
+        "0",
         "--user-data-dir",
         user_data_dir.as_str(),
+        "--parent-pid",
+        parent_pid.as_str(),
     ]);
     let (mut rx, child) = command.spawn()?;
+    let (ready_tx, ready_rx) = mpsc::channel::<String>();
 
-    app.manage(SidecarState {
-        child: Mutex::new(Some(child)),
-    });
-
+    let mut ready_tx = Some(ready_tx);
     tauri::async_runtime::spawn(async move {
         while let Some(event) = rx.recv().await {
             match event {
                 CommandEvent::Stdout(line) => {
-                    println!("{}", String::from_utf8_lossy(&line).trim_end());
+                    let line = String::from_utf8_lossy(&line);
+                    let line = line.trim_end();
+                    println!("{line}");
+                    if let Some(api_base_url) = parse_sidecar_api_base_url(line) {
+                        if let Some(ready_tx) = ready_tx.take() {
+                            let _ = ready_tx.send(api_base_url);
+                        }
+                    }
                 }
                 CommandEvent::Stderr(line) => {
                     eprintln!("{}", String::from_utf8_lossy(&line).trim_end());
@@ -374,7 +472,20 @@ fn spawn_sidecar(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>>
         }
     });
 
-    Ok(())
+    let api_base_url = match ready_rx.recv_timeout(SIDECAR_READY_TIMEOUT) {
+        Ok(api_base_url) => api_base_url,
+        Err(error) => {
+            let _ = child.kill();
+            return Err(format!("Sidecar did not report readiness: {error}").into());
+        }
+    };
+
+    app.manage(SidecarState {
+        child: Mutex::new(Some(child)),
+        api_base_url: api_base_url.clone(),
+    });
+
+    Ok(api_base_url)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -394,7 +505,16 @@ pub fn run() {
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
             app.manage(BreakFocusState::default());
             create_tray(app)?;
-            spawn_sidecar(app)?;
+            let api_base_url = spawn_sidecar(app)?;
+            create_main_window(app, &api_base_url)?;
+            start_native_event_subscriber(
+                app.handle().clone(),
+                format!("{api_base_url}events"),
+                show_break_overlay_for_kind,
+                hide_break_overlay_for_native,
+                show_break_warning_for_kind,
+                hide_break_warnings_for_native,
+            );
             Ok(())
         })
         .on_menu_event(|app, event| match event.id().as_ref() {

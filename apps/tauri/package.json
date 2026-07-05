@@ -8,8 +8,8 @@
     "tauri": "tauri",
     "typecheck": "cargo check --manifest-path src-tauri/Cargo.toml",
     "build:sidecar": "bun scripts/build-sidecar.ts",
-    "dev:web": "PORT=5733 VITE_API_BASE_URL=http://127.0.0.1:56321/ bun run --cwd ../web dev -- --host 127.0.0.1",
-    "build:web": "VITE_API_BASE_URL=http://127.0.0.1:56321/ bun run --cwd ../web build"
+    "dev:web": "PORT=5733 bun run --cwd ../web dev -- --host 127.0.0.1",
+    "build:web": "bun run --cwd ../web build"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.1",

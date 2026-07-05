@@ -1,80 +1,86 @@
-import { homedir } from "node:os";
-import { join } from "node:path";
-import { createStore } from "@antirsi/core";
-import { Effect } from "effect";
-import { AntiRsiEngine } from "./lib/antirsi-engine";
-import { loadConfig } from "./lib/config-store";
-import { createCachedIdleProvider } from "./lib/idle-provider";
-import { configureLogger, log, logInfo } from "./lib/logger";
+import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
+import * as NodeServices from "@effect/platform-node/NodeServices";
+import { Context, Effect, FileSystem, Layer } from "effect";
+import { AntiRsiRuntime, makeAntiRsiRuntimeLayer } from "./lib/antirsi-runtime";
+import { ConfigStore, ConfigStoreLayer } from "./lib/config-store";
+import { IdleProviderLayer } from "./lib/idle-provider";
+import { getLogFilePath } from "./lib/logger";
 import { startSidecarOrchestration } from "./lib/orchestration";
+import { ProcessServiceLayer } from "./lib/process-service";
+import {
+  SidecarOptionsLayer,
+  SidecarOptionsService,
+} from "./lib/sidecar-options";
 import { startApiServerEffect } from "./server";
 
-const DEFAULT_PORT = 56321;
+const RuntimeLayer = Layer.mergeAll(
+  SidecarOptionsLayer,
+  ConfigStoreLayer.pipe(Layer.provide(NodeServices.layer)),
+  IdleProviderLayer.pipe(Layer.provide(NodeServices.layer)),
+  ProcessServiceLayer.pipe(Layer.provide(NodeServices.layer)),
+  NodeServices.layer,
+);
 
-type Options = {
-  port: number;
-  userDataDir: string;
-};
+const startParentProcessWatchdog = (
+  parentPid: number | null,
+): Effect.Effect<void> => {
+  if (parentPid === null) {
+    return Effect.void;
+  }
 
-const parseOptions = (): Options => {
-  const args = process.argv.slice(2);
-  let port = Number(process.env["ANTIRSI_API_PORT"] ?? DEFAULT_PORT);
-  let userDataDir =
-    process.env["ANTIRSI_USER_DATA_DIR"] ??
-    join(homedir(), "Library", "Application Support", "Anti RSI");
-
-  for (let index = 0; index < args.length; index += 1) {
-    const arg = args[index];
-    const nextArg = args[index + 1];
-    if (arg === "--port" && nextArg) {
-      port = Number(nextArg);
-      index += 1;
-    } else if (arg === "--user-data-dir" && nextArg) {
-      userDataDir = nextArg;
-      index += 1;
+  return Effect.gen(function* () {
+    while (true) {
+      const parentAlive = yield* Effect.sync(() => {
+        try {
+          process.kill(parentPid, 0);
+          return true;
+        } catch {
+          return false;
+        }
+      });
+      if (!parentAlive) {
+        yield* Effect.logWarning("Parent process exited; stopping sidecar", {
+          parentPid,
+        });
+        yield* Effect.sync(() => process.exit(0));
+      }
+      yield* Effect.sleep(1_000);
     }
-  }
-
-  if (!Number.isInteger(port) || port <= 0 || port > 65535) {
-    throw new Error(`Invalid API port: ${port}`);
-  }
-
-  return { port, userDataDir };
+  });
 };
 
 const startSidecar = Effect.gen(function* () {
-  const options = parseOptions();
-  const logFilePath = configureLogger(options.userDataDir);
-  const store = createStore();
-  const persistedConfig = yield* Effect.tryPromise({
-    try: () => loadConfig(options.userDataDir),
-    catch: (error) => error,
-  });
-  if (persistedConfig) {
-    store.dispatch({ type: "SET_CONFIG", config: persistedConfig });
-  }
-
-  const antiRsiEngine = new AntiRsiEngine(store, createCachedIdleProvider());
+  const options = yield* SidecarOptionsService;
+  yield* startParentProcessWatchdog(options.parentPid).pipe(Effect.forkScoped);
+  const configStore = yield* ConfigStore;
+  const fs = yield* FileSystem.FileSystem;
+  yield* fs.makeDirectory(options.userDataDir, { recursive: true });
+  const logFilePath = getLogFilePath(options.userDataDir);
+  yield* Effect.logInfo("Sidecar logger initialized", { logFilePath });
+  const persistedConfig = yield* configStore.load(options.userDataDir);
+  const runtimeLayer = makeAntiRsiRuntimeLayer(persistedConfig ?? undefined);
+  const runtimeContext = yield* Layer.build(runtimeLayer);
+  const runtime = Context.get(runtimeContext, AntiRsiRuntime);
   const apiServer = yield* startApiServerEffect({
-    store,
     port: options.port,
     logFilePath,
-  });
-  startSidecarOrchestration({
-    antiRsiEngine,
-    apiServer,
-    userDataDir: options.userDataDir,
-  });
+  }).pipe(Effect.provideService(AntiRsiRuntime, runtime));
+  yield* Effect.addFinalizer(() => Effect.promise(() => apiServer.close()));
 
-  antiRsiEngine.start();
-  logInfo("Sidecar started", {
+  yield* startSidecarOrchestration({
+    userDataDir: options.userDataDir,
+  }).pipe(Effect.provideService(AntiRsiRuntime, runtime));
+  yield* Effect.logInfo("Sidecar started", {
     apiBaseUrl: apiServer.url.href,
-    port: options.port,
+    port: Number(apiServer.url.port),
   });
   console.log(`ANTIRSI_API_BASE_URL=${apiServer.url.href}`);
+
+  return yield* Effect.never;
 });
 
-void Effect.runPromise(startSidecar).catch((error) => {
-  log("Fatal error", error instanceof Error ? error.stack : error);
-  process.exit(1);
-});
+startSidecar.pipe(
+  Effect.scoped,
+  Effect.provide(RuntimeLayer),
+  NodeRuntime.runMain({ disableErrorReporting: false }),
+);

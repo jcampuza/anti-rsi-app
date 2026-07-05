@@ -6,11 +6,9 @@ export {
   ApiEventBusLayer,
   ApiHandlersLayer,
   ApiRoutesLayer,
-  ApiStore,
-  type ApiServerDeps,
 } from "./create-api-app";
 export {
-  startApiServer,
   startApiServerEffect,
+  type ApiServerDeps,
   type ApiServerHandle,
 } from "./start-api-server";
