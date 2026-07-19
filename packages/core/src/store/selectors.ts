@@ -1,4 +1,5 @@
 import {
+  NATURAL_BREAK_IDLE_FACTOR,
   type AntiRsiBreakWarning,
   type AntiRsiConfig,
   type AntiRsiSnapshot,
@@ -15,14 +16,9 @@ const cloneTimings = (timings: AntiRsiTimings): AntiRsiTimings => ({
 })
 
 export const selectConfig = (state: StoreState): AntiRsiConfig => ({
+  ...state.config,
   mini: { ...state.config.mini },
   work: { ...state.config.work },
-  tickIntervalMs: state.config.tickIntervalMs,
-  naturalBreakContinuationWindowSeconds: state.config.naturalBreakContinuationWindowSeconds,
-  breakWarningLeadSeconds: state.config.breakWarningLeadSeconds,
-  waitForActivityPauseBeforeBreak: state.config.waitForActivityPauseBeforeBreak,
-  breakStartGraceSeconds: state.config.breakStartGraceSeconds,
-  maxBreakStartDelaySeconds: state.config.maxBreakStartDelaySeconds,
 })
 
 export const selectTimings = (state: StoreState): AntiRsiTimings => cloneTimings(state.timings)
@@ -35,7 +31,7 @@ export const selectIsIdleNaturalBreak = (state: StoreState): boolean => {
     return false
   }
 
-  const idleThresholdSeconds = state.config.mini.durationSeconds * 0.3
+  const idleThresholdSeconds = state.config.mini.durationSeconds * NATURAL_BREAK_IDLE_FACTOR
   return state.lastIdleSeconds > idleThresholdSeconds
 }
 

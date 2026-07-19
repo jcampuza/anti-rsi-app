@@ -34,7 +34,9 @@ describe("reducer config updates", () => {
       workElapsed: 0,
       workTaking: 0,
     })
-    expect(nextState.lastIdleSeconds).toBe(0)
+    // lastIdleSeconds is intentionally preserved across a config-triggered
+    // reset so a config change while idle doesn't emit a spurious "resumed".
+    expect(nextState.lastIdleSeconds).toBe(5)
     expect(nextState.lastUpdatedSeconds).toBe(0)
     expect(nextState.config.mini.intervalSeconds).toBe(
       defaultConfig().mini.intervalSeconds + 30,
@@ -103,6 +105,62 @@ describe("natural idle breaks", () => {
     expect(nextState.timings.miniElapsed).toBe(initialState.timings.miniElapsed)
     expect(nextState.timings.workElapsed).toBe(initialState.timings.workElapsed)
     expect(nextState.timings.miniTaking).toBe(5)
+  })
+})
+
+describe("postpone breaks", () => {
+  it("postpones the next mini break by resetting the mini interval timer", () => {
+    const config = defaultConfig()
+    const initialState = {
+      ...createInitialState(),
+      timings: {
+        miniElapsed: config.mini.intervalSeconds - 5,
+        miniTaking: 0,
+        workElapsed: 120,
+        workTaking: 0,
+      },
+    }
+
+    const nextState = reducer(initialState, {
+      type: "POSTPONE_BREAK",
+      breakType: "mini",
+    })
+
+    expect(nextState.status).toBe("normal")
+    expect(nextState.timings).toEqual({
+      miniElapsed: 0,
+      miniTaking: 0,
+      workElapsed: 120,
+      workTaking: 0,
+    })
+    expect(nextState.breakStartDelayElapsed).toBe(0)
+  })
+
+  it("postpones the next work break using the configured postpone duration", () => {
+    const config = defaultConfig()
+    const initialState = {
+      ...createInitialState(),
+      timings: {
+        miniElapsed: config.mini.intervalSeconds - 5,
+        miniTaking: 0,
+        workElapsed: config.work.intervalSeconds - 5,
+        workTaking: 0,
+      },
+    }
+
+    const nextState = reducer(initialState, {
+      type: "POSTPONE_BREAK",
+      breakType: "work",
+    })
+
+    expect(nextState.status).toBe("normal")
+    expect(nextState.timings).toEqual({
+      miniElapsed: 0,
+      miniTaking: 0,
+      workElapsed: config.work.intervalSeconds - config.work.postponeSeconds,
+      workTaking: 0,
+    })
+    expect(nextState.breakStartDelayElapsed).toBe(0)
   })
 })
 
@@ -243,5 +301,143 @@ describe("pending breaks", () => {
       dtSeconds: 0.5,
     })
     expect(pendingState.status).toBe("pending-mini")
+  })
+})
+
+describe("natural continuation through pending work breaks", () => {
+  const pendingNaturalState = () => {
+    const initial = createInitialState()
+    const state = {
+      ...initial,
+      timings: { ...initial.timings, workTaking: 120 },
+    }
+    return reducer(state, { type: "START_WORK_BREAK", naturalContinuation: true })
+  }
+
+  it("preserves accrued workTaking through pending and ACK when naturalContinuation is true", () => {
+    const pending = pendingNaturalState()
+    expect(pending.status).toBe("pending-work")
+    expect(pending.pendingNaturalContinuation).toBe(true)
+    expect(pending.timings.workTaking).toBe(120)
+
+    const active = reducer(pending, {
+      type: "ACK_BREAK_VISIBLE",
+      breakType: "work",
+    })
+    expect(active.status).toBe("in-work")
+    expect(active.timings.workTaking).toBe(120)
+  })
+
+  it("preserves accrued workTaking when the pending break activates via the ack timeout", () => {
+    const pending = pendingNaturalState()
+
+    const active = reducer(pending, {
+      type: "TICK",
+      idleSeconds: 10,
+      dtSeconds: 2,
+    })
+    expect(active.status).toBe("in-work")
+    expect(active.timings.workTaking).toBe(120)
+  })
+
+  it("starts the work break from zero when naturalContinuation is false", () => {
+    const initial = createInitialState()
+    const state = {
+      ...initial,
+      timings: { ...initial.timings, workTaking: 120 },
+    }
+    const pending = reducer(state, {
+      type: "START_WORK_BREAK",
+      naturalContinuation: false,
+    })
+    expect(pending.pendingNaturalContinuation).toBe(false)
+    expect(pending.timings.workTaking).toBe(0)
+
+    const active = reducer(pending, {
+      type: "ACK_BREAK_VISIBLE",
+      breakType: "work",
+    })
+    expect(active.timings.workTaking).toBe(0)
+  })
+
+  it("does not carry naturalContinuation through a tick-triggered (auto) pending work break", () => {
+    const config = defaultConfig()
+    const initialState = {
+      ...createInitialState(),
+      timings: {
+        miniElapsed: 0,
+        miniTaking: 0,
+        workElapsed: config.work.intervalSeconds,
+        workTaking: 90,
+      },
+    }
+
+    const pending = reducer(initialState, {
+      type: "TICK",
+      idleSeconds: 0,
+      dtSeconds: 1,
+    })
+    expect(pending.status).toBe("pending-work")
+    expect(pending.pendingNaturalContinuation).toBe(false)
+
+    const active = reducer(pending, {
+      type: "ACK_BREAK_VISIBLE",
+      breakType: "work",
+    })
+    expect(active.status).toBe("in-work")
+    expect(active.timings.workTaking).toBe(0)
+  })
+})
+
+describe("work break trigger during natural idle", () => {
+  it("does not queue a work break while the user is in a natural idle break", () => {
+    const config = defaultConfig()
+    const initialState = {
+      ...createInitialState(),
+      timings: {
+        miniElapsed: 0,
+        miniTaking: 0,
+        workElapsed: config.work.intervalSeconds,
+        workTaking: 0,
+      },
+    }
+
+    const nextState = reducer(initialState, {
+      type: "TICK",
+      idleSeconds: config.naturalBreakContinuationWindowSeconds,
+      dtSeconds: 1,
+    })
+
+    expect(nextState.status).toBe("normal")
+  })
+
+  it("still queues the work break once the user becomes active again", () => {
+    const config = defaultConfig()
+    const idleState = {
+      ...createInitialState(),
+      timings: {
+        miniElapsed: 0,
+        miniTaking: 0,
+        workElapsed: config.work.intervalSeconds,
+        workTaking: 0,
+      },
+      lastIdleSeconds: config.naturalBreakContinuationWindowSeconds,
+    }
+
+    const nextState = reducer(idleState, {
+      type: "TICK",
+      idleSeconds: 0,
+      dtSeconds: 1,
+    })
+
+    expect(nextState.status).toBe("pending-work")
+  })
+})
+
+describe("config reset idle preservation", () => {
+  it("preserves lastIdleSeconds across RESET_CONFIG", () => {
+    const state = { ...createInitialState(), lastIdleSeconds: 42 }
+    const nextState = reducer(state, { type: "RESET_CONFIG" })
+    expect(nextState.lastIdleSeconds).toBe(42)
   })
 })

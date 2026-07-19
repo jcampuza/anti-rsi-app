@@ -1,7 +1,14 @@
 import { Effect, Schema } from "effect";
 
-const PositiveFinite = Schema.Finite.check(Schema.isGreaterThan(0));
-const NonNegativeFinite = Schema.Finite.check(Schema.isGreaterThanOrEqualTo(0));
+/**
+ * Constraint-only numeric schemas (no decoding defaults). Exported so partial
+ * schemas (e.g. the HTTP SET_CONFIG payload) can reuse the same constraints
+ * without inheriting the full schema's decoding defaults.
+ */
+export const PositiveFinite = Schema.Finite.check(Schema.isGreaterThan(0));
+export const NonNegativeFinite = Schema.Finite.check(
+  Schema.isGreaterThanOrEqualTo(0),
+);
 
 export const breakConfigSchema = Schema.Struct({
   intervalSeconds: PositiveFinite,
@@ -35,6 +42,14 @@ export const antiRsiConfigSchema = Schema.Struct({
     Schema.withDecodingDefaultTypeKey(Effect.succeed(30)),
   ),
 });
+
+/**
+ * Canonical list of top-level config keys, derived from the schema so config
+ * merge/equality logic never needs a hand-maintained field list.
+ */
+export const antiRsiConfigKeys = Object.keys(
+  antiRsiConfigSchema.fields,
+) as ReadonlyArray<keyof typeof antiRsiConfigSchema.Type>;
 
 export type BreakConfig = typeof breakConfigSchema.Type;
 export type WorkBreakConfig = typeof workBreakConfigSchema.Type;

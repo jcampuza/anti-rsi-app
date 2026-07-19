@@ -3,18 +3,5 @@
   "identifier": "default",
   "description": "Anti RSI desktop permissions",
   "windows": ["main", "overlay-*", "warning-*"],
-  "permissions": [
-    "core:default",
-    "opener:default",
-    {
-      "identifier": "shell:allow-spawn",
-      "allow": [
-        {
-          "name": "binaries/antirsi-sidecar",
-          "sidecar": true,
-          "args": true
-        }
-      ]
-    }
-  ]
+  "permissions": ["core:default", "opener:default"]
 }

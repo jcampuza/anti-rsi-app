@@ -1,16 +1,20 @@
+import { useAtomValue } from "@effect/atom-solid";
+import { RegistryProvider } from "@effect/atom-solid";
 import { Outlet, createRootRoute } from "@tanstack/solid-router";
 import { createEffect, createSignal } from "solid-js";
+import { AntiRsiGate } from "~/components/AntiRsiGate";
 import { BreakOverlay } from "~/components/BreakOverlay";
 import { BreakWarningToast } from "~/components/BreakWarningToast";
 import { Header } from "~/components/Header";
-import {
-  AntiRsiBootstrap,
-  AntiRsiProvider,
-  useAntiRsi,
-} from "~/context/antirsi";
 import { useInterpolatedTimings } from "~/hooks/useInterpolatedTimings";
 import { useOverlayMode } from "~/hooks/useOverlayMode";
-import { hideTauriBreakOverlay } from "~/lib/tauri-overlay-manager";
+import { useDispatch } from "~/lib/api";
+import {
+  configAtom,
+  connectionStatusAtom,
+  snapshotAtom,
+  snapshotReceivedAtAtom,
+} from "~/lib/app-state";
 import "~/assets/tailwind.css";
 
 type OverlayKind = "mini" | "work";
@@ -33,24 +37,28 @@ const isWarningRoute = (): boolean => {
 };
 
 function OverlayWindow(props: { kind: OverlayKind }) {
-  const antirsi = useAntiRsi();
+  const snapshot = useAtomValue(() => snapshotAtom);
+  const config = useAtomValue(() => configAtom);
+  const snapshotReceivedAt = useAtomValue(() => snapshotReceivedAtAtom);
+  const connectionStatus = useAtomValue(() => connectionStatusAtom);
+  const dispatch = useDispatch();
   const timings = useInterpolatedTimings(
-    antirsi.snapshot,
-    antirsi.snapshotReceivedAt,
+    snapshot,
+    snapshotReceivedAt,
+    () => connectionStatus() === "open",
   );
   const [acknowledgedKind, setAcknowledgedKind] =
     createSignal<OverlayKind | null>(null);
   const [ackInFlight, setAckInFlight] = createSignal(false);
   useOverlayMode({ isEnabled: true });
   createEffect(() => {
-    if (antirsi.snapshot().state === "normal") {
+    if (snapshot().state === "normal") {
       setAcknowledgedKind(null);
       setAckInFlight(false);
-      hideTauriBreakOverlay();
     }
   });
   createEffect(() => {
-    const state = antirsi.snapshot().state;
+    const state = snapshot().state;
     const expectedPendingState =
       props.kind === "work" ? "pending-work" : "pending-mini";
     if (
@@ -59,11 +67,10 @@ function OverlayWindow(props: { kind: OverlayKind }) {
       !ackInFlight()
     ) {
       setAckInFlight(true);
-      void antirsi.api
-        .dispatch({
-          type: "ACK_BREAK_VISIBLE",
-          breakType: props.kind,
-        })
+      void dispatch({
+        type: "ACK_BREAK_VISIBLE",
+        breakType: props.kind,
+      })
         .then(() => {
           setAcknowledgedKind(props.kind);
         })
@@ -80,19 +87,19 @@ function OverlayWindow(props: { kind: OverlayKind }) {
     props.kind === "work"
       ? {
           onPostpone: () => {
-            antirsi.api.dispatch({ type: "POSTPONE_WORK_BREAK" });
+            void dispatch({ type: "POSTPONE_WORK_BREAK" });
           },
         }
       : {};
 
   return (
     <BreakOverlay
-      snapshot={antirsi.snapshot()}
-      config={antirsi.config()}
+      snapshot={snapshot()}
+      config={config()}
       timings={timings()}
       {...overlayProps}
       onSkip={() => {
-        antirsi.api.dispatch(
+        void dispatch(
           props.kind === "work"
             ? { type: "END_WORK_BREAK" }
             : { type: "END_MINI_BREAK" },
@@ -103,31 +110,53 @@ function OverlayWindow(props: { kind: OverlayKind }) {
 }
 
 function WarningWindow() {
-  const antirsi = useAntiRsi();
+  const snapshot = useAtomValue(() => snapshotAtom);
+  const config = useAtomValue(() => configAtom);
+  const snapshotReceivedAt = useAtomValue(() => snapshotReceivedAtAtom);
+  const connectionStatus = useAtomValue(() => connectionStatusAtom);
+  const dispatch = useDispatch();
   const timings = useInterpolatedTimings(
-    antirsi.snapshot,
-    antirsi.snapshotReceivedAt,
+    snapshot,
+    snapshotReceivedAt,
+    () => connectionStatus() === "open",
   );
+  const [postponeInFlight, setPostponeInFlight] = createSignal(false);
   useOverlayMode({ isEnabled: true });
   const displaySeconds = () => {
-    const warning = antirsi.snapshot().breakWarning;
+    const warning = snapshot().breakWarning;
     if (!warning) {
       return 0;
     }
     if (warning.phase === "waiting-for-activity-pause") {
       return warning.forcedStartInSeconds ?? 0;
     }
-    const config = antirsi.config();
+    const currentConfig = config();
     const projected = timings();
     return warning.breakType === "work"
-      ? Math.max(config.work.intervalSeconds - projected.workElapsed, 0)
-      : Math.max(config.mini.intervalSeconds - projected.miniElapsed, 0);
+      ? Math.max(currentConfig.work.intervalSeconds - projected.workElapsed, 0)
+      : Math.max(currentConfig.mini.intervalSeconds - projected.miniElapsed, 0);
+  };
+  const handlePostpone = (): void => {
+    const warning = snapshot().breakWarning;
+    if (!warning || postponeInFlight()) {
+      return;
+    }
+    setPostponeInFlight(true);
+    dispatch({ type: "POSTPONE_BREAK", breakType: warning.breakType })
+      .catch((error) => {
+        console.error("[AntiRSI] Failed to postpone break warning", error);
+      })
+      .finally(() => {
+        setPostponeInFlight(false);
+      });
   };
 
   return (
     <BreakWarningToast
-      warning={antirsi.snapshot().breakWarning}
+      warning={snapshot().breakWarning}
       displaySeconds={displaySeconds()}
+      onPostpone={handlePostpone}
+      postponeDisabled={postponeInFlight()}
     />
   );
 }
@@ -154,11 +183,11 @@ function AppShell() {
 
 function RootLayout() {
   return (
-    <AntiRsiProvider>
-      <AntiRsiBootstrap>
+    <RegistryProvider>
+      <AntiRsiGate>
         <AppShell />
-      </AntiRsiBootstrap>
-    </AntiRsiProvider>
+      </AntiRsiGate>
+    </RegistryProvider>
   );
 }
 

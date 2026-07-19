@@ -1,16 +1,16 @@
 import type { AntiRsiConfig, BreakConfig, WorkBreakConfig } from "@antirsi/core";
-import { createEffect, createSignal, type Component } from "solid-js";
-import { type AntiRsiRendererApi } from "~/context/antirsi";
+import { createEffect, createSignal, Show, type Component } from "solid-js";
 import { Button } from "~/components/ui/Button";
+import { useDispatch } from "~/lib/api";
 
 interface ConfigPanelProps {
   config: AntiRsiConfig;
-  api: AntiRsiRendererApi;
   onReset: () => void;
   class?: string;
 }
 
 export const ConfigPanel: Component<ConfigPanelProps> = (props) => {
+  const dispatch = useDispatch();
   const [miniConfig, setMiniConfig] = createSignal<BreakConfig>({
     ...props.config.mini,
   });
@@ -29,6 +29,43 @@ export const ConfigPanel: Component<ConfigPanelProps> = (props) => {
   );
   const [maxBreakStartDelaySeconds, setMaxBreakStartDelaySeconds] =
     createSignal(props.config.maxBreakStartDelaySeconds);
+  const [invalidFields, setInvalidFields] = createSignal<Set<string>>(
+    new Set(),
+  );
+  const hasInvalidField = () => invalidFields().size > 0;
+  const [applyError, setApplyError] = createSignal(false);
+
+  const markFieldValid = (field: string, valid: boolean): void => {
+    setInvalidFields((prev) => {
+      const next = new Set(prev);
+      if (valid) {
+        next.delete(field);
+      } else {
+        next.add(field);
+      }
+      return next;
+    });
+  };
+
+  /**
+   * Parses a numeric input value, guarding against NaN/non-finite values.
+   * Returns the previous value unchanged (leaving state untouched) and flags
+   * the field as invalid instead of writing NaN into state; the Apply button
+   * is disabled while any field is invalid.
+   */
+  const parseIntGuarded = (
+    field: string,
+    value: string,
+    previous: number,
+  ): number => {
+    const parsed = Number.parseInt(value, 10);
+    if (!Number.isFinite(parsed)) {
+      markFieldValid(field, false);
+      return previous;
+    }
+    markFieldValid(field, true);
+    return parsed;
+  };
 
   createEffect(() => {
     setMiniConfig({ ...props.config.mini });
@@ -42,22 +79,25 @@ export const ConfigPanel: Component<ConfigPanelProps> = (props) => {
   });
 
   const handleApply = (): void => {
-    props.api
-      .dispatch({
-        type: "SET_CONFIG",
-        config: {
-          mini: miniConfig(),
-          work: workConfig(),
-          breakWarningLeadSeconds: breakWarningLeadSeconds(),
-          waitForActivityPauseBeforeBreak:
-            waitForActivityPauseBeforeBreak(),
-          breakStartGraceSeconds: breakStartGraceSeconds(),
-          maxBreakStartDelaySeconds: maxBreakStartDelaySeconds(),
-        },
-      })
-      .catch((error) =>
-        console.error("[AntiRSI] Failed to update config", error),
-      );
+    if (hasInvalidField()) {
+      return;
+    }
+    setApplyError(false);
+    dispatch({
+      type: "SET_CONFIG",
+      config: {
+        mini: miniConfig(),
+        work: workConfig(),
+        breakWarningLeadSeconds: breakWarningLeadSeconds(),
+        waitForActivityPauseBeforeBreak: waitForActivityPauseBeforeBreak(),
+        breakStartGraceSeconds: breakStartGraceSeconds(),
+        maxBreakStartDelaySeconds: maxBreakStartDelaySeconds(),
+      },
+    }).catch((error) => {
+      console.error("[AntiRSI] Failed to update config", error);
+      setApplyError(true);
+      window.setTimeout(() => setApplyError(false), 4000);
+    });
   };
 
   return (
@@ -101,9 +141,10 @@ export const ConfigPanel: Component<ConfigPanelProps> = (props) => {
               onInput={(event) =>
                 setMiniConfig({
                   ...miniConfig(),
-                  intervalSeconds: Number.parseInt(
+                  intervalSeconds: parseIntGuarded(
+                    "mini.intervalSeconds",
                     event.currentTarget.value,
-                    10,
+                    miniConfig().intervalSeconds,
                   ),
                 })
               }
@@ -119,9 +160,10 @@ export const ConfigPanel: Component<ConfigPanelProps> = (props) => {
               onInput={(event) =>
                 setMiniConfig({
                   ...miniConfig(),
-                  durationSeconds: Number.parseInt(
+                  durationSeconds: parseIntGuarded(
+                    "mini.durationSeconds",
                     event.currentTarget.value,
-                    10,
+                    miniConfig().durationSeconds,
                   ),
                 })
               }
@@ -138,9 +180,10 @@ export const ConfigPanel: Component<ConfigPanelProps> = (props) => {
               onInput={(event) =>
                 setWorkConfig({
                   ...workConfig(),
-                  intervalSeconds: Number.parseInt(
+                  intervalSeconds: parseIntGuarded(
+                    "work.intervalSeconds",
                     event.currentTarget.value,
-                    10,
+                    workConfig().intervalSeconds,
                   ),
                 })
               }
@@ -157,9 +200,10 @@ export const ConfigPanel: Component<ConfigPanelProps> = (props) => {
               onInput={(event) =>
                 setWorkConfig({
                   ...workConfig(),
-                  durationSeconds: Number.parseInt(
+                  durationSeconds: parseIntGuarded(
+                    "work.durationSeconds",
                     event.currentTarget.value,
-                    10,
+                    workConfig().durationSeconds,
                   ),
                 })
               }
@@ -176,9 +220,10 @@ export const ConfigPanel: Component<ConfigPanelProps> = (props) => {
               onInput={(event) =>
                 setWorkConfig({
                   ...workConfig(),
-                  postponeSeconds: Number.parseInt(
+                  postponeSeconds: parseIntGuarded(
+                    "work.postponeSeconds",
                     event.currentTarget.value,
-                    10,
+                    workConfig().postponeSeconds,
                   ),
                 })
               }
@@ -193,7 +238,11 @@ export const ConfigPanel: Component<ConfigPanelProps> = (props) => {
               value={breakWarningLeadSeconds()}
               onInput={(event) =>
                 setBreakWarningLeadSeconds(
-                  Number.parseInt(event.currentTarget.value, 10),
+                  parseIntGuarded(
+                    "breakWarningLeadSeconds",
+                    event.currentTarget.value,
+                    breakWarningLeadSeconds(),
+                  ),
                 )
               }
             />
@@ -229,7 +278,11 @@ export const ConfigPanel: Component<ConfigPanelProps> = (props) => {
               value={breakStartGraceSeconds()}
               onInput={(event) =>
                 setBreakStartGraceSeconds(
-                  Number.parseInt(event.currentTarget.value, 10),
+                  parseIntGuarded(
+                    "breakStartGraceSeconds",
+                    event.currentTarget.value,
+                    breakStartGraceSeconds(),
+                  ),
                 )
               }
             />
@@ -244,20 +297,39 @@ export const ConfigPanel: Component<ConfigPanelProps> = (props) => {
               value={maxBreakStartDelaySeconds()}
               onInput={(event) =>
                 setMaxBreakStartDelaySeconds(
-                  Number.parseInt(event.currentTarget.value, 10),
+                  parseIntGuarded(
+                    "maxBreakStartDelaySeconds",
+                    event.currentTarget.value,
+                    maxBreakStartDelaySeconds(),
+                  ),
                 )
               }
             />
           </label>
         </div>
 
-        <div class="flex flex-wrap gap-3">
-          <Button type="button" variant="primary" onClick={handleApply}>
+        <div class="flex flex-wrap items-center gap-3">
+          <Button
+            type="button"
+            variant="primary"
+            onClick={handleApply}
+            disabled={hasInvalidField()}
+          >
             Apply Settings
           </Button>
           <Button type="button" variant="secondary" onClick={props.onReset}>
             Reset Defaults
           </Button>
+          <Show when={hasInvalidField()}>
+            <p class="text-xs font-medium text-destructive" role="alert">
+              Enter a valid number before applying.
+            </p>
+          </Show>
+          <Show when={applyError()}>
+            <p class="text-xs font-medium text-destructive" role="alert">
+              Failed to apply settings. Please try again.
+            </p>
+          </Show>
         </div>
       </section>
     </div>

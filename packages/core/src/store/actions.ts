@@ -41,6 +41,11 @@ export type PostponeWorkBreakAction = {
   type: "POSTPONE_WORK_BREAK"
 }
 
+export type PostponeBreakAction = {
+  type: "POSTPONE_BREAK"
+  breakType: "mini" | "work"
+}
+
 export type SetUserPausedAction = {
   type: "SET_USER_PAUSED"
   value: boolean
@@ -75,6 +80,7 @@ export type Action =
   | EndWorkBreakAction
   | AckBreakVisibleAction
   | PostponeWorkBreakAction
+  | PostponeBreakAction
   | SetUserPausedAction
   | AddInhibitorAction
   | RemoveInhibitorAction

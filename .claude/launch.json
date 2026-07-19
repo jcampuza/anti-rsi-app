@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web-prod",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "exec bun run --cwd apps/web preview -- --port 5734 --strictPort"],
+      "port": 5734
+    }
+  ]
+}

@@ -26,6 +26,7 @@ const shouldEmitTimingsReset = (
 ): boolean => {
   switch (action.type) {
     case "RESET_TIMINGS":
+    case "POSTPONE_BREAK":
     case "POSTPONE_WORK_BREAK":
     case "RESET_CONFIG":
       return true
@@ -86,13 +87,16 @@ export const deriveEvents = (
     if (nextBreakType === "mini" && nextBreakType !== prevBreakType) {
       events.push({ type: "mini-break-start" })
     } else if (nextBreakType === "work" && nextBreakType !== prevBreakType) {
-      const naturalContinuation =
-        action.type === "START_WORK_BREAK" &&
-        "naturalContinuation" in action &&
-        action.naturalContinuation
+      // Derive from the timings that actually took effect on the transition
+      // into "in-work" (workTaking carried over means it was a natural
+      // continuation), rather than trusting the triggering action's flag —
+      // the action that queued the pending break may not be the same action
+      // that caused this specific state transition (e.g. an ack-timeout TICK
+      // activates a break that was queued by an earlier START_WORK_BREAK).
+      const naturalContinuation = nextState.timings.workTaking > 0
       events.push({
         type: "work-break-start",
-        naturalContinuation: Boolean(naturalContinuation),
+        naturalContinuation,
       })
     }
   } else {

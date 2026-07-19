@@ -31,6 +31,12 @@ enum AntiRsiState {
     PendingWork,
     InMini,
     InWork,
+    /// Fallback for any variant not recognized by this build. Without this,
+    /// serde would hard-fail deserialization of the whole snapshot event on
+    /// an unrecognized state, silently dropping overlay/warning updates.
+    /// Treated the same as `Normal` (no overlay).
+    #[serde(other)]
+    Unknown,
 }
 
 #[derive(Deserialize)]
@@ -60,14 +66,18 @@ impl AntiRsiState {
             Self::PendingWork | Self::InWork => {
                 DesiredOverlayState::Visible(BreakOverlayKind::Work)
             }
-            Self::Normal => DesiredOverlayState::Hidden,
+            Self::Normal | Self::Unknown => DesiredOverlayState::Hidden,
         }
     }
 }
 
+const RECONNECT_INITIAL_BACKOFF: Duration = Duration::from_secs(1);
+const RECONNECT_MAX_BACKOFF: Duration = Duration::from_secs(15);
+
 pub fn start_native_event_subscriber(
     app: AppHandle,
     events_url: String,
+    api_token: String,
     show_overlay: fn(AppHandle, BreakOverlayKind) -> Result<(), String>,
     hide_overlay: fn(AppHandle) -> Result<(), String>,
     show_warning: fn(AppHandle, BreakOverlayKind) -> Result<(), String>,
@@ -79,24 +89,39 @@ pub fn start_native_event_subscriber(
             overlay: DesiredOverlayState::Hidden,
             warning: None,
         };
+        let mut reconnect_backoff = RECONNECT_INITIAL_BACKOFF;
+        let mut logged_unknown_state = false;
 
         loop {
-            if let Err(error) = subscribe_once(
+            let subscribe_result = subscribe_once(
                 &client,
                 &app,
                 &events_url,
+                &api_token,
                 &mut current_native_window_state,
+                &mut logged_unknown_state,
                 show_overlay,
                 hide_overlay,
                 show_warning,
                 hide_warning,
             )
-            .await
-            {
-                eprintln!("Anti RSI native event subscriber disconnected: {error}");
+            .await;
+
+            let connected = match &subscribe_result {
+                Ok(connected) => *connected,
+                Err((connected, error)) => {
+                    eprintln!("Anti RSI native event subscriber disconnected: {error}");
+                    *connected
+                }
+            };
+            if connected {
+                // We successfully connected at least once this attempt (even
+                // if the stream later dropped); reset backoff.
+                reconnect_backoff = RECONNECT_INITIAL_BACKOFF;
             }
 
-            tokio::time::sleep(Duration::from_secs(1)).await;
+            tokio::time::sleep(reconnect_backoff).await;
+            reconnect_backoff = std::cmp::min(reconnect_backoff * 2, RECONNECT_MAX_BACKOFF);
         }
     });
 }
@@ -105,20 +130,25 @@ async fn subscribe_once(
     client: &reqwest::Client,
     app: &AppHandle,
     events_url: &str,
+    api_token: &str,
     current_native_window_state: &mut DesiredNativeWindowState,
+    logged_unknown_state: &mut bool,
     show_overlay: fn(AppHandle, BreakOverlayKind) -> Result<(), String>,
     hide_overlay: fn(AppHandle) -> Result<(), String>,
     show_warning: fn(AppHandle, BreakOverlayKind) -> Result<(), String>,
     hide_warning: fn(AppHandle) -> Result<(), String>,
-) -> Result<(), String> {
-    let response = client
-        .get(events_url)
+) -> Result<bool, (bool, String)> {
+    let mut request = client.get(events_url);
+    if !api_token.is_empty() {
+        request = request.header("Authorization", format!("Bearer {api_token}"));
+    }
+    let response = request
         .send()
         .await
-        .map_err(|error| error.to_string())?;
+        .map_err(|error| (false, error.to_string()))?;
 
     if !response.status().is_success() {
-        return Err(format!("SSE request failed ({})", response.status()));
+        return Err((false, format!("SSE request failed ({})", response.status())));
     }
 
     let mut stream = response.bytes_stream();
@@ -126,7 +156,7 @@ async fn subscribe_once(
     let mut data_lines: Vec<Vec<u8>> = Vec::new();
 
     while let Some(chunk) = stream.next().await {
-        let chunk = chunk.map_err(|error| error.to_string())?;
+        let chunk = chunk.map_err(|error| (true, error.to_string()))?;
         pending.extend_from_slice(&chunk);
 
         while let Some(line_end) = pending.iter().position(|byte| *byte == b'\n') {
@@ -143,6 +173,7 @@ async fn subscribe_once(
                     app,
                     &data_lines,
                     current_native_window_state,
+                    logged_unknown_state,
                     show_overlay,
                     hide_overlay,
                     show_warning,
@@ -155,7 +186,7 @@ async fn subscribe_once(
         }
     }
 
-    Err("SSE stream ended".to_string())
+    Err((true, "SSE stream ended".to_string()))
 }
 
 fn trim_start_ascii(value: &[u8]) -> &[u8] {
@@ -170,6 +201,7 @@ fn handle_sse_event(
     app: &AppHandle,
     data_lines: &[Vec<u8>],
     current_native_window_state: &mut DesiredNativeWindowState,
+    logged_unknown_state: &mut bool,
     show_overlay: fn(AppHandle, BreakOverlayKind) -> Result<(), String>,
     hide_overlay: fn(AppHandle) -> Result<(), String>,
     show_warning: fn(AppHandle, BreakOverlayKind) -> Result<(), String>,
@@ -186,6 +218,13 @@ fn handle_sse_event(
     let Some(snapshot) = event.snapshot else {
         return;
     };
+
+    if matches!(snapshot.state, AntiRsiState::Unknown) && !*logged_unknown_state {
+        eprintln!(
+            "Anti RSI native event subscriber received an unrecognized core state; treating it as no overlay. This message logs once per run."
+        );
+        *logged_unknown_state = true;
+    }
 
     let desired_native_window_state = DesiredNativeWindowState {
         overlay: snapshot.state.desired_overlay_state(),
@@ -254,6 +293,54 @@ fn reconcile_native_windows(
         .map_err(|error| error.to_string())
 }
 
+/// A single native window action to take while reconciling `current` toward
+/// `desired`. Kept separate from `AppHandle` and the show/hide callbacks so
+/// the planning logic (`plan_native_window_actions`) is pure and cheaply
+/// unit-testable.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum NativeWindowAction {
+    ShowOverlay(BreakOverlayKind),
+    HideOverlay,
+    ShowWarning(BreakOverlayKind),
+    HideWarning,
+}
+
+/// Pure planning step: given the currently-applied window state and the
+/// newly desired state, decide which window actions to perform and in what
+/// order. Overlay windows always take priority over warning windows, and a
+/// warning is torn down before an overlay is shown.
+fn plan_native_window_actions(
+    current: DesiredNativeWindowState,
+    desired: DesiredNativeWindowState,
+) -> Vec<NativeWindowAction> {
+    let mut actions = Vec::new();
+
+    if desired.overlay != DesiredOverlayState::Hidden {
+        if current.warning.is_some() {
+            actions.push(NativeWindowAction::HideWarning);
+        }
+        if desired.overlay != current.overlay {
+            if let DesiredOverlayState::Visible(kind) = desired.overlay {
+                actions.push(NativeWindowAction::ShowOverlay(kind));
+            }
+        }
+        return actions;
+    }
+
+    if current.overlay != DesiredOverlayState::Hidden {
+        actions.push(NativeWindowAction::HideOverlay);
+    }
+
+    if desired.warning != current.warning {
+        match desired.warning {
+            Some(kind) => actions.push(NativeWindowAction::ShowWarning(kind)),
+            None => actions.push(NativeWindowAction::HideWarning),
+        }
+    }
+
+    actions
+}
+
 fn reconcile_native_windows_on_main_thread(
     app: &AppHandle,
     current: DesiredNativeWindowState,
@@ -263,29 +350,118 @@ fn reconcile_native_windows_on_main_thread(
     show_warning: fn(AppHandle, BreakOverlayKind) -> Result<(), String>,
     hide_warning: fn(AppHandle) -> Result<(), String>,
 ) -> Result<(), String> {
-    if desired.overlay != DesiredOverlayState::Hidden {
-        if current.warning.is_some() {
-            hide_warning(app.clone())?;
-        }
-        if desired.overlay != current.overlay {
-            match desired.overlay {
-                DesiredOverlayState::Hidden => {}
-                DesiredOverlayState::Visible(kind) => show_overlay(app.clone(), kind)?,
-            }
-        }
-        return Ok(());
-    }
-
-    if current.overlay != DesiredOverlayState::Hidden {
-        hide_overlay(app.clone())?;
-    }
-
-    if desired.warning != current.warning {
-        match desired.warning {
-            Some(kind) => show_warning(app.clone(), kind)?,
-            None => hide_warning(app.clone())?,
+    for action in plan_native_window_actions(current, desired) {
+        match action {
+            NativeWindowAction::ShowOverlay(kind) => show_overlay(app.clone(), kind)?,
+            NativeWindowAction::HideOverlay => hide_overlay(app.clone())?,
+            NativeWindowAction::ShowWarning(kind) => show_warning(app.clone(), kind)?,
+            NativeWindowAction::HideWarning => hide_warning(app.clone())?,
         }
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn hidden() -> DesiredNativeWindowState {
+        DesiredNativeWindowState {
+            overlay: DesiredOverlayState::Hidden,
+            warning: None,
+        }
+    }
+
+    #[test]
+    fn shows_overlay_from_hidden() {
+        let current = hidden();
+        let desired = DesiredNativeWindowState {
+            overlay: DesiredOverlayState::Visible(BreakOverlayKind::Mini),
+            warning: None,
+        };
+
+        assert_eq!(
+            plan_native_window_actions(current, desired),
+            vec![NativeWindowAction::ShowOverlay(BreakOverlayKind::Mini)]
+        );
+    }
+
+    #[test]
+    fn overlay_hides_existing_warning_first() {
+        let current = DesiredNativeWindowState {
+            overlay: DesiredOverlayState::Hidden,
+            warning: Some(BreakOverlayKind::Mini),
+        };
+        let desired = DesiredNativeWindowState {
+            overlay: DesiredOverlayState::Visible(BreakOverlayKind::Work),
+            warning: None,
+        };
+
+        assert_eq!(
+            plan_native_window_actions(current, desired),
+            vec![
+                NativeWindowAction::HideWarning,
+                NativeWindowAction::ShowOverlay(BreakOverlayKind::Work)
+            ]
+        );
+    }
+
+    #[test]
+    fn teardown_from_overlay_to_normal_hides_overlay() {
+        let current = DesiredNativeWindowState {
+            overlay: DesiredOverlayState::Visible(BreakOverlayKind::Work),
+            warning: None,
+        };
+        let desired = hidden();
+
+        assert_eq!(
+            plan_native_window_actions(current, desired),
+            vec![NativeWindowAction::HideOverlay]
+        );
+    }
+
+    #[test]
+    fn warning_appears_when_overlay_clears_to_normal() {
+        let current = DesiredNativeWindowState {
+            overlay: DesiredOverlayState::Visible(BreakOverlayKind::Mini),
+            warning: None,
+        };
+        let desired = DesiredNativeWindowState {
+            overlay: DesiredOverlayState::Hidden,
+            warning: Some(BreakOverlayKind::Mini),
+        };
+
+        assert_eq!(
+            plan_native_window_actions(current, desired),
+            vec![
+                NativeWindowAction::HideOverlay,
+                NativeWindowAction::ShowWarning(BreakOverlayKind::Mini)
+            ]
+        );
+    }
+
+    #[test]
+    fn warning_is_torn_down_when_it_clears() {
+        let current = DesiredNativeWindowState {
+            overlay: DesiredOverlayState::Hidden,
+            warning: Some(BreakOverlayKind::Work),
+        };
+        let desired = hidden();
+
+        assert_eq!(
+            plan_native_window_actions(current, desired),
+            vec![NativeWindowAction::HideWarning]
+        );
+    }
+
+    #[test]
+    fn no_actions_when_state_is_unchanged() {
+        let current = DesiredNativeWindowState {
+            overlay: DesiredOverlayState::Visible(BreakOverlayKind::Mini),
+            warning: None,
+        };
+
+        assert_eq!(plan_native_window_actions(current, current), Vec::new());
+    }
 }

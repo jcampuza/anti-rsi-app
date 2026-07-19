@@ -17,12 +17,27 @@ interface InterpolatedTimings {
 const SNAP_THRESHOLD_SECONDS = 2;
 const DISPLAY_UPDATE_INTERVAL_MS = 250;
 
+/**
+ * Ceiling on how far forward we'll project from a stale snapshot when the SSE
+ * connection is not "open". Without this, a long-dead connection would keep
+ * projecting timings forward indefinitely and drift from the (unknown)
+ * server truth.
+ */
+const MAX_ELAPSED_WHEN_DISCONNECTED_SECONDS = 5;
+
 export const projectTimings = (
   snap: AntiRsiSnapshot,
   receivedAt: number,
   now: number,
+  isConnected = true,
 ): InterpolatedTimings => {
-  const elapsedSinceSnapshot = Math.max(0, (now - receivedAt) / 1000);
+  const rawElapsedSinceSnapshot = Math.max(0, (now - receivedAt) / 1000);
+  // Freeze interpolation (stop projecting forward) once the connection has
+  // dropped: clamp elapsed time to a small ceiling instead of growing
+  // unbounded while we wait to reconnect.
+  const elapsedSinceSnapshot = isConnected
+    ? rawElapsedSinceSnapshot
+    : Math.min(rawElapsedSinceSnapshot, MAX_ELAPSED_WHEN_DISCONNECTED_SECONDS);
   const timings = { ...snap.timings };
 
   if (!snap.timersRunning) {
@@ -56,6 +71,7 @@ export const projectTimings = (
 export function useInterpolatedTimings(
   snapshot: Accessor<AntiRsiSnapshot | undefined>,
   snapshotReceivedAt: Accessor<number>,
+  isConnected: Accessor<boolean> = () => true,
 ): Accessor<InterpolatedTimings> {
   const [interpolated, setInterpolated] = createSignal<InterpolatedTimings>({
     miniElapsed: 0,
@@ -86,7 +102,12 @@ export function useInterpolatedTimings(
       return;
     }
 
-    const nextTimings = projectTimings(state.snapshot, state.receivedAt, now);
+    const nextTimings = projectTimings(
+      state.snapshot,
+      state.receivedAt,
+      now,
+      isConnected(),
+    );
     const currentTimings = currentTimingsRef.current;
 
     if (
@@ -134,7 +155,12 @@ export function useInterpolatedTimings(
     if (!snap) return;
 
     const receivedAt = snapshotReceivedAt();
-    const projected = projectTimings(snap, receivedAt, performance.now());
+    const projected = projectTimings(
+      snap,
+      receivedAt,
+      performance.now(),
+      isConnected(),
+    );
     const currentTimings = currentTimingsRef.current;
 
     // Calculate drift from current interpolated values
@@ -164,12 +190,24 @@ export function useInterpolatedTimings(
     if (shouldSnapMini || shouldSnapWork || !snap.timersRunning) {
       publishCurrentTimings(performance.now(), true);
     }
+
+    // Gate the 250ms timer loop on `timersRunning` so it doesn't keep
+    // ticking (and re-rendering) while timers are paused.
+    if (snap.timersRunning) {
+      startTimer();
+    } else {
+      stopTimer();
+    }
   });
 
-  // Start display updates on mount, stop on cleanup.
+  // Start display updates on mount (if timers are already running), stop on
+  // cleanup. The createEffect above takes over start/stop once a snapshot
+  // arrives.
   onMount(() => {
     updateCurrentRef();
-    startTimer();
+    if (snapshot()?.timersRunning) {
+      startTimer();
+    }
   });
 
   onCleanup(() => {

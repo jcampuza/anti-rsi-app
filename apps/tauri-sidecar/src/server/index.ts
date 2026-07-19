@@ -1,11 +1,12 @@
 export { LOOPBACK_HOST, LOOPBACK_ORIGIN_PATTERN } from "./constants";
 export {
-  ApiAppLayer,
   ApiCorsLayer,
   ApiEventBus,
   ApiEventBusLayer,
   ApiHandlersLayer,
   ApiRoutesLayer,
+  makeApiAppLayer,
+  makeApiAuthLayer,
 } from "./create-api-app";
 export {
   startApiServerEffect,

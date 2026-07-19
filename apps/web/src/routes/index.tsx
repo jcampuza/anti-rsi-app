@@ -1,48 +1,57 @@
+import { useAtomValue } from "@effect/atom-solid";
 import { createFileRoute } from "@tanstack/solid-router";
 import { Show, createMemo } from "solid-js";
 import BreakStatusCard from "~/components/BreakStatusCard";
 import { HeaderActions } from "~/components/HeaderActions";
-import { useAntiRsi } from "~/context/antirsi";
 import { useInterpolatedTimings } from "~/hooks/useInterpolatedTimings";
+import {
+  configAtom,
+  connectionStatusAtom,
+  processesAtom,
+  snapshotAtom,
+  snapshotReceivedAtAtom,
+} from "~/lib/app-state";
 
 export const Route = createFileRoute("/")({
   component: HomePage,
 });
 
 function HomePage() {
-  const antirsi = useAntiRsi();
+  const snapshot = useAtomValue(() => snapshotAtom);
+  const config = useAtomValue(() => configAtom);
+  const processes = useAtomValue(() => processesAtom);
+  const snapshotReceivedAt = useAtomValue(() => snapshotReceivedAtAtom);
+  const connectionStatus = useAtomValue(() => connectionStatusAtom);
+  const isConnected = () => connectionStatus() === "open";
   const timings = useInterpolatedTimings(
-    antirsi.snapshot,
-    antirsi.snapshotReceivedAt,
+    snapshot,
+    snapshotReceivedAt,
+    isConnected,
   );
 
   const miniElapsed = () => timings().miniElapsed;
   const workElapsed = () => timings().workElapsed;
 
-  const pendingMini = createMemo(() => {
-    const config = antirsi.config();
-    return Math.max(0, config.mini.intervalSeconds - miniElapsed());
-  });
+  const pendingMini = createMemo(() =>
+    Math.max(0, config().mini.intervalSeconds - miniElapsed()),
+  );
 
-  const pendingWork = createMemo(() => {
-    const config = antirsi.config();
-    return Math.max(0, config.work.intervalSeconds - workElapsed());
-  });
+  const pendingWork = createMemo(() =>
+    Math.max(0, config().work.intervalSeconds - workElapsed()),
+  );
 
   return (
     <div class="app-region-drag flex min-h-[330px] flex-col gap-4 px-4 py-5 sm:gap-5 sm:px-6 sm:py-6">
-      <Show when={antirsi.snapshot().paused && antirsi.processes().length > 0}>
+      <Show when={snapshot().paused && processes().length > 0}>
         <section class="rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3">
           <p class="text-sm font-semibold text-accent">
             Timers paused because of active processes:{" "}
-            {antirsi.processes().join(", ")}
+            {processes().join(", ")}
           </p>
         </section>
       </Show>
 
-      <Show
-        when={antirsi.snapshot().paused && antirsi.processes().length === 0}
-      >
+      <Show when={snapshot().paused && processes().length === 0}>
         <section class="rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3">
           <p class="text-sm font-semibold text-accent">Timers paused</p>
         </section>
@@ -55,15 +64,15 @@ function HomePage() {
         }}
       >
         <BreakStatusCard
-          config={antirsi.config()}
-          snapshot={antirsi.snapshot()}
+          config={config()}
+          snapshot={snapshot()}
           breakType="mini"
           pendingSeconds={pendingMini()}
         />
-        <Show when={antirsi.config().work.enabled}>
+        <Show when={config().work.enabled}>
           <BreakStatusCard
-            config={antirsi.config()}
-            snapshot={antirsi.snapshot()}
+            config={config()}
+            snapshot={snapshot()}
             breakType="work"
             pendingSeconds={pendingWork()}
           />
@@ -71,11 +80,7 @@ function HomePage() {
       </section>
 
       <div class="mt-1 border-t border-white/[0.08] pt-4 sm:pt-5">
-        <HeaderActions
-          api={antirsi.api}
-          config={antirsi.config()}
-          snapshot={antirsi.snapshot()}
-        />
+        <HeaderActions config={config()} snapshot={snapshot()} />
       </div>
     </div>
   );

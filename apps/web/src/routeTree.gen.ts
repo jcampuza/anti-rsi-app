@@ -9,20 +9,8 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as WorkBreakRouteImport } from './routes/work-break'
-import { Route as MicroBreakRouteImport } from './routes/micro-break'
 import { Route as IndexRouteImport } from './routes/index'
 
-const WorkBreakRoute = WorkBreakRouteImport.update({
-  id: '/work-break',
-  path: '/work-break',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MicroBreakRoute = MicroBreakRouteImport.update({
-  id: '/micro-break',
-  path: '/micro-break',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -31,50 +19,28 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/micro-break': typeof MicroBreakRoute
-  '/work-break': typeof WorkBreakRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/micro-break': typeof MicroBreakRoute
-  '/work-break': typeof WorkBreakRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/micro-break': typeof MicroBreakRoute
-  '/work-break': typeof WorkBreakRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/micro-break' | '/work-break'
+  fullPaths: '/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/micro-break' | '/work-break'
-  id: '__root__' | '/' | '/micro-break' | '/work-break'
+  to: '/'
+  id: '__root__' | '/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  MicroBreakRoute: typeof MicroBreakRoute
-  WorkBreakRoute: typeof WorkBreakRoute
 }
 
 declare module '@tanstack/solid-router' {
   interface FileRoutesByPath {
-    '/work-break': {
-      id: '/work-break'
-      path: '/work-break'
-      fullPath: '/work-break'
-      preLoaderRoute: typeof WorkBreakRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/micro-break': {
-      id: '/micro-break'
-      path: '/micro-break'
-      fullPath: '/micro-break'
-      preLoaderRoute: typeof MicroBreakRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/': {
       id: '/'
       path: '/'
@@ -87,8 +53,6 @@ declare module '@tanstack/solid-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  MicroBreakRoute: MicroBreakRoute,
-  WorkBreakRoute: WorkBreakRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

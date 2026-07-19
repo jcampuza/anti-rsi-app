@@ -5,6 +5,8 @@ import formatSeconds from "~/utils/time";
 interface BreakWarningToastProps {
   warning: AntiRsiBreakWarning | null;
   displaySeconds?: number;
+  onPostpone?: () => void;
+  postponeDisabled?: boolean;
 }
 
 const shellClassName =
@@ -53,6 +55,19 @@ export const BreakWarningToast: Component<BreakWarningToastProps> = (props) => {
           <div class="shrink-0 rounded-md border border-white/10 bg-white/[0.06] px-2.5 py-1.5 text-base font-semibold tabular-nums text-white/95">
             {formatSeconds(Math.ceil(seconds()))}
           </div>
+          <Show when={props.onPostpone !== undefined}>
+            <button
+              type="button"
+              class="app-region-no-drag shrink-0 rounded-md border border-white/12 bg-white/[0.08] px-2.5 py-1.5 text-xs font-semibold text-white/92 transition-colors hover:border-white/20 hover:bg-white/[0.14] disabled:cursor-not-allowed disabled:opacity-55"
+              disabled={props.postponeDisabled}
+              onClick={(event) => {
+                event.stopPropagation();
+                props.onPostpone?.();
+              }}
+            >
+              Postpone
+            </button>
+          </Show>
         </div>
       </div>
     </Show>

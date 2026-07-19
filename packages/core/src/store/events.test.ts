@@ -22,6 +22,27 @@ describe("deriveEvents", () => {
     expect(events).toContainEqual({ type: "status-update" })
   })
 
+  it("ends the warning and emits timings-reset when a warning break is postponed", () => {
+    const config = createInitialState().config
+    const prevState = {
+      ...createInitialState(),
+      timings: {
+        miniElapsed: config.mini.intervalSeconds - 5,
+        miniTaking: 0,
+        workElapsed: 120,
+        workTaking: 0,
+      },
+    }
+    const action = { type: "POSTPONE_BREAK" as const, breakType: "mini" as const }
+    const nextState = reducer(prevState, action)
+    const { events } = deriveEvents(prevState, nextState, action)
+
+    expect(selectSnapshot(prevState).breakWarning?.breakType).toBe("mini")
+    expect(selectSnapshot(nextState).breakWarning).toBeNull()
+    expect(events).toContainEqual({ type: "break-warning-end", breakType: "mini" })
+    expect(events).toContainEqual({ type: "timings-reset" })
+  })
+
   it("emits paused when an inhibitor is added", () => {
     const prevState = createInitialState()
     const action = { type: "ADD_INHIBITOR" as const, id: "system:suspend" }

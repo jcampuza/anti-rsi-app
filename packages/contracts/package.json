@@ -15,11 +15,11 @@
   "scripts": {
     "build": "vp pack src/index.ts src/http-api.ts --format esm --dts --out-dir dist --clean",
     "typecheck": "tsc --noEmit",
-    "test": "vp test run --passWithNoTests"
+    "test": "vp test run --config vitest.config.ts"
   },
   "dependencies": {
     "@antirsi/core": "workspace:*",
-    "effect": "^4.0.0-beta.93"
+    "effect": "catalog:"
   },
   "devDependencies": {
     "vite-plus": "catalog:"

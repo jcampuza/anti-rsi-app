@@ -17,6 +17,8 @@ export interface AntiRsiRuntimeMeta {
   rendererBaseUrl?: string;
   /** Loopback HTTP API base URL or hosted API via VITE_API_BASE_URL. */
   apiBaseUrl?: string;
+  /** Per-launch bearer token required by the loopback HTTP API, when set. */
+  apiToken?: string;
 }
 
 /** Native shells expose runtime meta only; data access uses the HTTP client. */

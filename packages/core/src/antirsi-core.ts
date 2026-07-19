@@ -10,7 +10,33 @@ export {
   parseAntiRsiConfig,
 } from "./config-schema";
 
-import type { AntiRsiConfig } from "./config-schema";
+import { antiRsiConfigKeys, type AntiRsiConfig } from "./config-schema";
+
+/**
+ * Idle-time thresholds baked into the break engine. These are deliberately
+ * not configurable: they encode what "resting" means, not user preference.
+ */
+
+/**
+ * During a mini break, any input within the last second means the user is
+ * still active, so the break's rest progress resets — a mini break only
+ * counts if the hands are continuously off the keyboard/mouse.
+ */
+export const MINI_BREAK_ACTIVITY_RESET_IDLE_SECONDS = 1;
+
+/**
+ * During a work break, rest time only accrues once the user has been idle
+ * for a few seconds, so brief incidental input doesn't count toward the
+ * break while still tolerating small adjustments (moving the mouse aside).
+ */
+export const WORK_BREAK_REST_IDLE_THRESHOLD_SECONDS = 4;
+
+/**
+ * A pause longer than this fraction of the mini-break duration is treated as
+ * a natural (self-taken) break, pausing the interval timers — matching the
+ * original AntiRSI heuristic that a meaningful pause is ~30% of a mini break.
+ */
+export const NATURAL_BREAK_IDLE_FACTOR = 0.3;
 
 export type BreakType = "mini" | "work";
 
@@ -59,47 +85,67 @@ export type AntiRsiEventListener = (
   snapshot: AntiRsiSnapshot,
 ) => void;
 
-const mergeConfig = (override?: Partial<AntiRsiConfig>): AntiRsiConfig => {
-  const base: AntiRsiConfig = {
-    mini: {
-      intervalSeconds: 4 * 60,
-      durationSeconds: 13,
-    },
-    work: {
-      enabled: true,
-      intervalSeconds: 50 * 60,
-      durationSeconds: 8 * 60,
-      postponeSeconds: 10 * 60,
-    },
-    tickIntervalMs: 500,
-    naturalBreakContinuationWindowSeconds: 30,
-    breakWarningLeadSeconds: 10,
-    waitForActivityPauseBeforeBreak: false,
-    breakStartGraceSeconds: 2,
-    maxBreakStartDelaySeconds: 30,
-  };
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
 
-  if (!override) {
-    return base;
-  }
-
-  return {
-    mini: { ...base.mini, ...(override.mini ?? {}) },
-    work: { ...base.work, ...(override.work ?? {}) },
-    tickIntervalMs: override.tickIntervalMs ?? base.tickIntervalMs,
-    naturalBreakContinuationWindowSeconds:
-      override.naturalBreakContinuationWindowSeconds ??
-      base.naturalBreakContinuationWindowSeconds,
-    breakWarningLeadSeconds:
-      override.breakWarningLeadSeconds ?? base.breakWarningLeadSeconds,
-    waitForActivityPauseBeforeBreak:
-      override.waitForActivityPauseBeforeBreak ??
-      base.waitForActivityPauseBeforeBreak,
-    breakStartGraceSeconds:
-      override.breakStartGraceSeconds ?? base.breakStartGraceSeconds,
-    maxBreakStartDelaySeconds:
-      override.maxBreakStartDelaySeconds ?? base.maxBreakStartDelaySeconds,
-  };
+const baseDefaultConfig: AntiRsiConfig = {
+  mini: {
+    intervalSeconds: 4 * 60,
+    durationSeconds: 13,
+  },
+  work: {
+    enabled: true,
+    intervalSeconds: 50 * 60,
+    durationSeconds: 8 * 60,
+    postponeSeconds: 10 * 60,
+  },
+  tickIntervalMs: 500,
+  naturalBreakContinuationWindowSeconds: 30,
+  breakWarningLeadSeconds: 10,
+  waitForActivityPauseBeforeBreak: false,
+  breakStartGraceSeconds: 2,
+  maxBreakStartDelaySeconds: 30,
 };
 
-export const defaultConfig = (): AntiRsiConfig => mergeConfig();
+/**
+ * Returns a fresh config with `patch` applied over `base`. Nested config
+ * objects are merged shallowly. Driven by the schema key list so adding a
+ * config field requires touching only the schema.
+ */
+export const mergeConfig = (
+  base: AntiRsiConfig,
+  patch?: Partial<AntiRsiConfig>,
+): AntiRsiConfig => {
+  const next: Record<string, unknown> = {};
+  for (const key of antiRsiConfigKeys) {
+    const baseValue = base[key];
+    const patchValue = patch?.[key];
+    next[key] = isPlainObject(baseValue)
+      ? { ...baseValue, ...(isPlainObject(patchValue) ? patchValue : {}) }
+      : (patchValue ?? baseValue);
+  }
+  return next as unknown as AntiRsiConfig;
+};
+
+/** Structural equality over the schema key list (one level of nesting). */
+export const configsEqual = (
+  left: AntiRsiConfig,
+  right: AntiRsiConfig,
+): boolean =>
+  antiRsiConfigKeys.every((key) => {
+    const l = left[key];
+    const r = right[key];
+    if (isPlainObject(l) && isPlainObject(r)) {
+      const lRecord = l as Record<string, unknown>;
+      const rRecord = r as Record<string, unknown>;
+      const nestedKeys = new Set([
+        ...Object.keys(lRecord),
+        ...Object.keys(rRecord),
+      ]);
+      return [...nestedKeys].every((nested) => lRecord[nested] === rRecord[nested]);
+    }
+    return l === r;
+  });
+
+export const defaultConfig = (): AntiRsiConfig =>
+  mergeConfig(baseDefaultConfig);

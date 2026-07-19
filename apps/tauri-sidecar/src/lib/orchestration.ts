@@ -23,12 +23,21 @@ export const startSidecarOrchestration = ({
       Effect.flatMap((config) => configStore.save(userDataDir, config)),
     );
 
-    yield* runtime.events.pipe(
+    const subscription = yield* runtime.subscribeEvents;
+    yield* Stream.fromSubscription(subscription).pipe(
       Stream.runForEach((event) => {
         if (event.type !== "config-changed") {
           return Effect.void;
         }
-        return configStore.save(userDataDir, event.config);
+        // Read the authoritative current config rather than persisting
+        // `event.config` directly: the events PubSub is sliding and can
+        // drop a burst of config-changed notifications, so the event
+        // payload here may be stale by the time this consumer catches up.
+        // Re-reading `runtime.config` guarantees we always persist the
+        // latest value regardless of how many notifications were dropped.
+        return runtime.config.pipe(
+          Effect.flatMap((config) => configStore.save(userDataDir, config)),
+        );
       }),
       Effect.forkScoped,
     );

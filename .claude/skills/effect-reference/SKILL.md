@@ -1,11 +1,11 @@
 ---
 name: effect-reference
-description: Reference Effect and additional reference repositories using effect in a reusable local exploration cache. Use this skill when the user asks to explore, inspect, investigate, compare, or answer questions. Use when reading or writing effect code. Use when the user has questions about effect code. Use when working with code that imports effect. 
+description: Reference Effect and additional reference repositories using effect in a reusable local exploration cache. Use this skill when the user asks to explore, inspect, investigate, compare, or answer questions. Use when reading or writing effect code. Use when the user has questions about effect code. Use when working with code that imports effect.
 ---
 
 Use this skill to explore effect code without cluttering the active workspace
 
-## Repository Cache 
+## Repository Cache
 
 Use `.references/repos` as the local cache directory for repositories being explored.
 

@@ -2,7 +2,7 @@ import { Context, Effect, Layer, Ref, type Scope } from "effect";
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 
 const WATCHED_PROCESSES = ["zoom.us"];
-const PROCESS_POLL_INTERVAL_MS = 2500;
+const PROCESS_POLL_INTERVAL_MS = 5000;
 
 type ProcessPollingDeps = {
   readonly onProcessesChanged: (processes: string[]) => Effect.Effect<void>;
@@ -32,10 +32,7 @@ export const ProcessServiceLayer = Layer.effect(
       function* (name: string) {
         return yield* spawner
           .string(ChildProcess.make("pgrep", ["-x", name]))
-          .pipe(
-            Effect.map((stdout) => stdout.trim().length > 0),
-            Effect.catch(() => Effect.succeed(false)),
-          );
+          .pipe(Effect.map((stdout) => stdout.trim().length > 0));
       },
     );
 
@@ -68,8 +65,8 @@ export const ProcessServiceLayer = Layer.effect(
         yield* Ref.set(lastProcesses, processes);
         yield* onProcessesChanged(processes);
       }).pipe(
-        Effect.catch((error) =>
-          Effect.logError("Process polling failed", { error }),
+        Effect.catchCause((cause) =>
+          Effect.logError("Process polling failed", { cause }),
         ),
       );
 

@@ -13,10 +13,15 @@ import {
 import { IdleProvider } from "../lib/idle-provider";
 
 import {
+  fileLoggerLayer,
   startApiServerEffect,
   type ApiServerDeps,
-  type ApiServerHandle,
 } from "./start-api-server";
+
+interface ApiServerHandle {
+  readonly url: URL;
+  readonly close: () => Promise<void>;
+}
 
 interface SseSession {
   next: () => Promise<unknown>;
@@ -90,15 +95,33 @@ const makeRuntime = async (): Promise<{
   };
 };
 
-const startTestApiServer = (
-  deps: ApiServerDeps,
+const startTestApiServer = async (
+  deps: ApiServerDeps & { logFilePath?: string },
   runtime: AntiRsiRuntimeService,
-): Promise<ApiServerHandle> =>
-  Effect.runPromise(
-    startApiServerEffect(deps).pipe(
-      Effect.provideService(AntiRsiRuntime, runtime),
-    ),
-  );
+): Promise<ApiServerHandle> => {
+  const scope = Scope.makeUnsafe();
+  const close = () => Effect.runPromise(Scope.close(scope, Exit.void));
+  try {
+    const loggerContext = deps.logFilePath
+      ? await Effect.runPromise(
+          Layer.build(fileLoggerLayer(deps.logFilePath)).pipe(
+            Scope.provide(scope),
+          ),
+        )
+      : Context.empty();
+    const handle = await Effect.runPromise(
+      startApiServerEffect(deps).pipe(
+        Effect.provideService(AntiRsiRuntime, runtime),
+        Effect.provide(loggerContext),
+        Scope.provide(scope),
+      ),
+    );
+    return { url: handle.url, close };
+  } catch (error) {
+    await close();
+    throw error;
+  }
+};
 
 describe("startApiServer", () => {
   let server: ApiServerHandle | undefined;
@@ -235,6 +258,100 @@ describe("startApiServer", () => {
     expect(response.headers.get("access-control-allow-origin")).toBe(
       "http://localhost:5733",
     );
+  });
+
+  describe("API token auth", () => {
+    it("allows open access when no token is configured", async () => {
+      ({ runtime, close: closeRuntime } = await makeRuntime());
+      server = await startTestApiServer({}, runtime);
+
+      const response = await fetch(
+        new URL(API_ROUTES.SNAPSHOT, server.url.href),
+      );
+      expect(response.status).toBe(200);
+    });
+
+    it("rejects requests without a token when one is configured", async () => {
+      ({ runtime, close: closeRuntime } = await makeRuntime());
+      server = await startTestApiServer({ apiToken: "secret-token" }, runtime);
+
+      const response = await fetch(
+        new URL(API_ROUTES.SNAPSHOT, server.url.href),
+      );
+      expect(response.status).toBe(401);
+    });
+
+    it("rejects requests with the wrong token", async () => {
+      ({ runtime, close: closeRuntime } = await makeRuntime());
+      server = await startTestApiServer({ apiToken: "secret-token" }, runtime);
+
+      const response = await fetch(
+        new URL(API_ROUTES.SNAPSHOT, server.url.href),
+        { headers: { Authorization: "Bearer wrong-token" } },
+      );
+      expect(response.status).toBe(401);
+    });
+
+    it("accepts a valid token via the Authorization header", async () => {
+      ({ runtime, close: closeRuntime } = await makeRuntime());
+      server = await startTestApiServer({ apiToken: "secret-token" }, runtime);
+
+      const response = await fetch(
+        new URL(API_ROUTES.SNAPSHOT, server.url.href),
+        { headers: { Authorization: "Bearer secret-token" } },
+      );
+      expect(response.status).toBe(200);
+    });
+
+    it("accepts a valid token via the ?token= query param (for EventSource)", async () => {
+      ({ runtime, close: closeRuntime } = await makeRuntime());
+      server = await startTestApiServer({ apiToken: "secret-token" }, runtime);
+
+      const url = new URL(API_ROUTES.SNAPSHOT, server.url.href);
+      url.searchParams.set("token", "secret-token");
+      const response = await fetch(url);
+      expect(response.status).toBe(200);
+    });
+
+    it("authorizes the SSE endpoint via ?token= query param, since EventSource cannot set headers", async () => {
+      ({ runtime, close: closeRuntime } = await makeRuntime());
+      server = await startTestApiServer({ apiToken: "secret-token" }, runtime);
+
+      const eventsUrl = new URL(API_ROUTES.EVENTS, server.url.href);
+      eventsUrl.searchParams.set("token", "secret-token");
+      const session = openSseSession(eventsUrl);
+
+      const event = (await session.next()) as { type: string };
+      expect(event.type).toBe("init");
+      session.close();
+    });
+
+    it("does not block CORS preflight (OPTIONS) requests", async () => {
+      ({ runtime, close: closeRuntime } = await makeRuntime());
+      server = await startTestApiServer({ apiToken: "secret-token" }, runtime);
+
+      const response = await fetch(
+        new URL(API_ROUTES.SNAPSHOT, server.url.href),
+        {
+          method: "OPTIONS",
+          headers: {
+            Origin: "http://localhost:5733",
+            "Access-Control-Request-Method": "GET",
+          },
+        },
+      );
+      expect(response.status).toBe(204);
+    });
+
+    it("rejects the SSE endpoint without a token", async () => {
+      ({ runtime, close: closeRuntime } = await makeRuntime());
+      server = await startTestApiServer({ apiToken: "secret-token" }, runtime);
+
+      const response = await fetch(
+        new URL(API_ROUTES.EVENTS, server.url.href),
+      );
+      expect(response.status).toBe(401);
+    });
   });
 
   it("writes server lifecycle logs to the configured file", async () => {
